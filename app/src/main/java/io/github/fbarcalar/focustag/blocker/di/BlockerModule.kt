@@ -12,8 +12,8 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import io.github.fbarcalar.focustag.blocker.BlockListRepository
 import io.github.fbarcalar.focustag.blocker.BlockListStore
+import io.github.fbarcalar.focustag.blocker.InstalledAppsRepository
 import io.github.fbarcalar.focustag.blocker.InstalledAppsSource
-import io.github.fbarcalar.focustag.blocker.PlaceholderInstalledAppsSource
 import io.github.fbarcalar.focustag.di.ApplicationScope
 import io.github.fbarcalar.focustag.di.IoDispatcher
 import javax.inject.Singleton
@@ -27,7 +27,7 @@ interface BlockerModule {
     fun blockListRepository(store: BlockListStore): BlockListRepository
 
     @Binds
-    fun installedAppsSource(source: PlaceholderInstalledAppsSource): InstalledAppsSource
+    fun installedAppsSource(repository: InstalledAppsRepository): InstalledAppsSource
 
     companion object {
         @Provides
