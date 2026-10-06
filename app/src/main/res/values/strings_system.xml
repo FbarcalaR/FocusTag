@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="zen_rule_name">FocusTag focus</string>
+    <string name="zen_rule_trigger">Scan your desk tag</string>
+    <string name="zen_condition_on">Focus session active</string>
+    <string name="zen_condition_off">Free time</string>
+</resources>
