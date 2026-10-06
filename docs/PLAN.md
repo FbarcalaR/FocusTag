@@ -46,8 +46,8 @@ app/src/main/java/io/github/fbarcalar/focustag/
   focus/Contracts.kt             (T1, frozen) FocusMode, FocusState, TagRole, FocusController,
                                             FocusStateReader, FocusEffects, AppStartHook
   focus/**  (everything else)    (T2)
-  nfc/Contracts.kt               (T1, frozen) NfcGateway, ScannedTag, PairingRepository, TagPairing,
-                                            TagScanResult, TagWriter
+  nfc/Contracts.kt               (T1, frozen) NfcGateway, ScannedTag, NfcTagHandle, WriteResult,
+                                            PairingRepository, TagPairing, PairingResult, TagWriter
   nfc/**                         (T3)
   system/Contracts.kt            (T1, frozen) PermissionChecker, PermissionItem, PermissionId,
                                             PermissionStatus, GrayscaleFallbackSettings
@@ -84,10 +84,10 @@ README.md, docs/MANUAL_CHECKS.md (T8)
 
 ### 2.2 End-to-end tests as features land
 
-E2E tests are **not** a final phase. T1 ships an E2E harness: `test/.../e2e/FocusTagE2E.kt`, a Robolectric + Hilt test base with a small DSL (`scanTag(role)`, `scanUnknownTag()`, `openApp(pkg)`, `reboot()`, `killProcess()`, `revoke(permission)`, `assertMode(...)`, `assertZenRuleActive(...)`, `assertBlockingShown(...)`). It fakes only the hardware/OS edges (`NfcGateway`, system manager shadows). Every task adds the scenarios it can drive **in the same commit series as the feature**:
+E2E tests are **not** a final phase. T1 ships an E2E harness: `test/.../e2e/FocusTagE2E.kt`, a Robolectric + Hilt test base with a small DSL (`scanTag(role)`, `scanUnknownTag()`, `openApp(pkg)`, `reboot()`, `seedPreferences(file) { }` for cold starts, `revoke(permission)`, `assertMode(...)`, `assertZenRuleActive(...)`, `assertBlockingShown(...)`). It fakes only the hardware/OS edges (`NfcGateway`, system manager shadows). Every task adds the scenarios it can drive **in the same commit series as the feature**:
 
 * **Slice E2E** (written during Implement, owned by the task): the task's layer driven from its Android entry point (intent, broadcast, accessibility event, screen) with the other layers' placeholders/fakes.
-* **Cross-layer E2E** (written during Integrate): each scenario below lists the tasks it needs. **The task whose merge completes that set writes it**, after rebasing on the integration head. The files live in `test/.../e2e/scenarios/<Scenario>Test.kt`, one file per scenario, so ownership never overlaps.
+* **Cross-layer E2E** (written during Integrate): each scenario below lists the tasks it needs. **The task whose merge completes that set writes it**, after rebasing on the integration head. The files live in `test/.../e2e/scenarios/<Scenario>Test.kt`, one file per scenario, so ownership never overlaps. Slice E2E files live in the task's own test dir (`test/.../<layer>/<Layer>SliceE2ETest.kt`).
 
 | Scenario | Needs |
 |----------|-------|
@@ -97,7 +97,7 @@ E2E tests are **not** a final phase. T1 ships an E2E harness: `test/.../e2e/Focu
 | E2E-4 Living-room tag while FOCUS → FREE, zen rule off, today's total updated | T2, T3, T4 |
 | E2E-5 FOCUS + open blocked app → blocking screen; allowed app → nothing | T2, T5 |
 | E2E-6 Blocked app already in foreground when FOCUS starts → blocked | T2, T3, T5 |
-| E2E-7 Process death in FOCUS → new graph, same DataStore → reconcile re-applies effects | T2, T4 |
+| E2E-7 Process death in FOCUS (cold start from a seeded FOCUS store) → reconcile re-applies effects, exactly one zen rule | T2, T4 |
 | E2E-8 Reboot broadcast in FOCUS → effects re-applied | T2, T4 |
 | E2E-9 DND access revoked mid-session → no crash, degraded status, banner on Status | T2, T4, T6 |
 | E2E-10 Zen rule turned off externally while FOCUS → re-asserted | T2, T4 |
@@ -122,7 +122,7 @@ E2E tests are **not** a final phase. T1 ships an E2E harness: `test/.../e2e/Focu
 8. Shared test fakes in `testing/`: `FakeClock`, `FakeNfcGateway`, `FakeFocusEffects`, `FakePermissionChecker`, and a temp-dir DataStore helper. E2E harness `e2e/FocusTagE2E.kt` + DSL (§2.2), with one harness self-test.
 9. CI workflow running `./gradlew assembleDebug lint test` with the SDK script. Smoke tests: one JVM test plus one Robolectric Compose test that navigates Status ↔ Setup.
 
-**Acceptance criteria:** the three commands pass from a clean clone after `scripts/setup-android-sdk.sh`; the app launches to the Setup placeholder; navigation works in the Robolectric test; every contract has KDoc; the manifest contains every component listed above.
+**Acceptance criteria:** the three commands pass from a clean clone after `scripts/setup-android-sdk.sh`; the app launches to the Setup placeholder (asserted by `HiltGraphTest`); navigation works in the Robolectric test; the E2E harness self-test passes; every contract has KDoc; the manifest contains every component listed above.
 **Test strategy:** Robolectric navigation test, a Hilt graph test (`@HiltAndroidTest` launching `MainActivity`), and the build commands.
 
 #### Refinement notes (T1)
@@ -151,7 +151,7 @@ E2E tests are **not** a final phase. T1 ships an E2E harness: `test/.../e2e/Focu
 | androidx.test core / ext-junit | 1.7.0 / 1.3.0 | |
 | SDK packages | `platforms;android-37.0`, `build-tools;37.0.0`, `platform-tools`, cmdline-tools `latest` (16111833) | No plain `android-37` package exists, only `android-37.0/.1/.2`. **Correction to D-01/D-06, recorded in DECISIONS during Implement.** |
 
-* `compileSdk { version = release(37) }`, `targetSdk { version = release(37) }`, `minSdk { version = release(33) }` (AGP 9 DSL; it resolves to `platforms/android-37.0`). Fallback if the DSL form fails: `compileSdk = 37`.
+* `compileSdk { version = release(37) }`, `targetSdk { version = release(37) }`, `minSdk { version = release(33) }` (AGP 9 DSL; it must resolve to `platforms/android-37.0`). Fallbacks, in order: `release(37) { minorApiLevel = 0 }`, then `compileSdkVersion = "android-37.0"`. Not `compileSdk = 37`: it looks for `android-37`, which doesn't exist.
 * `gradle.properties`: `org.gradle.jvmargs=-Xmx2g -Dfile.encoding=UTF-8`, `kotlin.compiler.execution.strategy=in-process`, `org.gradle.caching=true`, `org.gradle.configuration-cache=true` (disable if KSP/Hilt break it), `android.useAndroidX=true`. Unit tests: `maxHeapSize = "1g"`, `isIncludeAndroidResources = true`.
 * Root `build.gradle.kts` declares the plugins with `apply false`: `com.android.application`, `org.jetbrains.kotlin.plugin.compose`, `org.jetbrains.kotlin.plugin.serialization`, `com.google.devtools.ksp`, `com.google.dagger.hilt.android`. Putting KGP 2.3.21 on the classpath is what upgrades AGP's built-in Kotlin.
 * **Android 17 target changes to record in DECISIONS (D-07):** static final fields can't be modified via reflection (no impact); lock-free `MessageQueue` (no reflection on it; Robolectric is unaffected); BAL hardening for `IntentSender`/`PendingIntent` (our only `PendingIntent` is the notification's content intent, which is user-initiated, and the blocker starts activities from an accessibility service, so there's no impact; T2 must not use `MODE_BACKGROUND_ACTIVITY_START_ALLOWED`); the large-screen orientation/resizability opt-out is removed (phone only, no impact). All of these apply only on Android 17 devices. The Pixel 10a runs 16.
@@ -162,12 +162,14 @@ E2E tests are **not** a final phase. T1 ships an E2E harness: `test/.../e2e/Focu
 ##### R2. Cross-cutting rules the contracts rely on
 
 1. **Time:** inject only `java.time.Clock`. Production binds `DeviceClock`, a `Clock` whose `getZone()` returns `ZoneId.systemDefault()` on every call, so a timezone change is picked up. `FakeClock` is a `Clock` with a mutable instant and zone. This one dependency replaces the "Clock + ZoneId provider" pair in subtask 4.
-2. **Process lifetime:** everything that lives as long as the process (DataStore instances, dynamically registered receivers, collectors) is bound to the `@ApplicationScope CoroutineScope` (`SupervisorJob() + Dispatchers.Default`) and releases on cancellation (`awaitClose` / `finally { unregister }`). Each DataStore is created in its layer's Hilt module with `PreferenceDataStoreFactory.create(scope = CoroutineScope(appScope.coroutineContext + ioDispatcher)) { context.preferencesDataStoreFile("<layer>") }`. **The `by preferencesDataStore` delegate is forbidden**: it's process-static, so it would survive the harness's `killProcess()` and break the single-instance check. File names: `focus_state`, `tag_pairings`, `block_list`, `system_settings`.
+2. **Process lifetime:** everything that lives as long as the process (DataStore instances, dynamically registered receivers, collectors) is bound to the `@ApplicationScope CoroutineScope` (`SupervisorJob() + Dispatchers.Default`) and releases on cancellation (`awaitClose` / `finally { unregister }`). Each DataStore is created in its layer's Hilt module with `PreferenceDataStoreFactory.create(scope = CoroutineScope(appScope.coroutineContext + ioDispatcher)) { context.preferencesDataStoreFile("<layer>") }`. **The `by preferencesDataStore` delegate is forbidden**: it's process-static, so under Robolectric it leaks across tests that share a sandbox, and it can't be closed, but the harness's cold-start seeding (R6) needs a DataStore it can close. File names: `focus_state`, `tag_pairings`, `block_list`, `system_settings`.
 3. **Qualifiers** (`di/Qualifiers.kt`): `@ApplicationScope`, `@IoDispatcher`, `@DefaultDispatcher`. There's no main-dispatcher qualifier (ViewModels use `viewModelScope`).
-4. **Dependency direction:** a layer depends only on other layers' `Contracts.kt`. `focus` defines `FocusEffects`, which `system` implements. `android.nfc.*` may be imported only in `nfc/AndroidNfcGateway*` and `nfc/NfcTriggerActivity` (checked by T8).
-5. **Bindings:** each layer binds its contracts in `<layer>/di/<Layer>Module.kt` (`@InstallIn(SingletonComponent)`). The NFC hardware binding lives in its **own** module, `nfc/di/NfcGatewayModule.kt`, so tests can replace just the gateway.
+4. **Dependency direction:** a layer depends only on other layers' `Contracts.kt`. `focus` defines `FocusEffects`, which `system` implements. `android.nfc.*` (including `Tag`/`NdefMessage`) may be imported only in `nfc/AndroidNfcGateway*` and `nfc/NfcTriggerActivity` (checked by T8).
+5. **Bindings:** each layer binds its contracts in `<layer>/di/<Layer>Module.kt` (`@InstallIn(SingletonComponent)`). The NFC hardware binding lives in its **own** module, `nfc/di/NfcGatewayModule.kt`, so tests can replace just the gateway. T3 keeps that module's name and package (`TestNfcGatewayModule` replaces it by class).
 
 ##### R3. Contracts (frozen after T1; KDoc on every member in the real files)
+
+Types: `java.time.Instant`, `kotlin.time.Duration` (also in `FakeClock.advanceBy`).
 
 ```kotlin
 // focus/Contracts.kt
@@ -233,6 +235,7 @@ interface NfcGateway {
     val availability: Flow<NfcAvailability>
     /** Parses an NDEF_DISCOVERED intent; null if it carries no tag. */
     fun readTag(intent: Intent): ScannedTag?
+    /** onTag runs on a binder thread; the caller hops to its own scope. */
     fun enableReaderMode(activity: Activity, onTag: (NfcTagHandle) -> Unit)
     fun disableReaderMode(activity: Activity)
     /** Writes URI record + AAR, then reads back and verifies (D-10). */
@@ -250,22 +253,20 @@ sealed interface PairingResult {
 
 interface PairingRepository {
     val pairings: Flow<Map<TagRole, TagPairing>>
-    /** Rejects a UID already paired to the other role. */
+    /** Returns Paired or UidUsedByOtherRole (never WriteFailed). */
     suspend fun save(pairing: TagPairing): PairingResult
     suspend fun reset(role: TagRole)
     suspend fun resetAll()
 }
 
-/** Pairing use case: new UUID → write → verify → save; old pairing untouched on failure. */
+/**
+ * Pairing use case: UID check → new UUID → write → verify → save; old pairing untouched on failure.
+ * The UID check comes first: writing a tag already paired to the other role would invalidate that role.
+ */
 interface TagWriter { suspend fun pair(tag: NfcTagHandle, role: TagRole): PairingResult }
-
-sealed interface TagScanResult {
-    data class Valid(val role: TagRole) : TagScanResult
-    data object Unknown : TagScanResult
-    data object UidMismatch : TagScanResult
-    data object Malformed : TagScanResult
-}
 ```
+
+`TagScanResult` (Valid/Unknown/UidMismatch/Malformed) is **not** a contract: only `NfcTriggerActivity` consumes it, so T3 defines it next to `TagValidator`.
 
 ```kotlin
 // system/Contracts.kt
@@ -352,9 +353,9 @@ interface InstalledAppsSource {
 
 Hilt test overrides (`@TestInstallIn`, which apply to **every** `@HiltAndroidTest`): `TestTimeModule` replaces `TimeModule` (`@Singleton FakeClock`, also bound as `Clock`), and `TestNfcGatewayModule` replaces `NfcGatewayModule` (`@Singleton FakeNfcGateway`, also bound as `NfcGateway`). The real `AndroidNfcGateway` is tested by T3 without Hilt. `robolectric.properties`: `sdk=37`, `application=dagger.hilt.android.testing.HiltTestApplication`.
 
-##### R6. E2E harness (`e2e/FocusTagE2E.kt`, plus `e2e/HiltProcess.kt` ≲ 40 lines)
+##### R6. E2E harness (`e2e/FocusTagE2E.kt`)
 
-`@HiltAndroidTest abstract class FocusTagE2E` with rules `HiltAndroidRule` (order 0) and `createEmptyComposeRule()` (order 1). Scenario classes extend it and are annotated `@HiltAndroidTest @RunWith(AndroidJUnit4::class)`. The harness never caches injected objects. It reads them through `EntryPoints.get(app, HarnessEntryPoint::class.java)`, which exposes `FocusController`, `FocusStateReader`, `PairingRepository`, `BlockListRepository`, `PermissionChecker`, `FakeNfcGateway`, `FakeClock`, `AppStartRunner` and `@ApplicationScope CoroutineScope`, so every call after a restart reaches the new graph.
+`@HiltAndroidTest abstract class FocusTagE2E` with rules `HiltAndroidRule` (order 0) and `createEmptyComposeRule()` (order 1). Scenario classes extend it and are annotated `@HiltAndroidTest @RunWith(AndroidJUnit4::class)`. It reads the graph lazily through `EntryPoints.get(app, HarnessEntryPoint::class.java)`, which exposes `FocusController`, `FocusStateReader`, `PairingRepository`, `BlockListRepository`, `PermissionChecker`, `FakeNfcGateway`, `FakeClock` and `AppStartRunner`. The harness's own `@Before` resolves nothing, so no singleton (and no DataStore) exists until a scenario first touches the graph.
 
 | DSL | Implementation |
 |-----|----------------|
@@ -367,25 +368,25 @@ Hilt test overrides (`@TestInstallIn`, which apply to **every** `@HiltAndroidTes
 | `turnZenRuleOffExternally()` | `NotificationManager.setAutomaticZenRuleState(id, FALSE)` on our rule, then broadcast `ACTION_AUTOMATIC_ZEN_RULE_STATUS_CHANGED` |
 | `revoke(grant)` / `grant(grant)` | `SystemGrant { NOTIFICATION_POLICY, POST_NOTIFICATIONS, ACCESSIBILITY_SERVICE, NFC, WRITE_SECURE_SETTINGS }` mapped onto the Robolectric shadows (`ShadowNotificationManager.setNotificationPolicyAccessGranted`, `ShadowApplication.grant/denyPermissions`, `Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES`, `FakeNfcGateway.availability`); then `PermissionChecker.refresh()` |
 | `advanceClock(d)` | `FakeClock.advanceBy(d)` |
-| `killProcess()` | see below |
-| `reboot()` | `killProcess()`, then reset volatile OS state (our zen rules set to `STATE_FALSE`, all notifications cancelled), then `sendBroadcast(BOOT_COMPLETED, package=ours)` + `idle()` |
+| `seedPreferences(file) { store -> }` | cold-start seam, see below |
+| `reboot()` | reset volatile OS state (our zen rules set to `STATE_FALSE`, all notifications cancelled), then `sendBroadcast(BOOT_COMPLETED, package=ours)` + `idle()`. It does not call `startApp()`, so it isolates `BootReceiver`. |
 | `assertMode(m)` | `eventually { FocusStateReader.state.first().mode == m }` |
 | `assertZenRuleActive(b)` | `NotificationManager.getAutomaticZenRules()` filtered to our package, `getAutomaticZenRuleState(id) == STATE_TRUE` (Robolectric 4.17 shadows both) |
 | `assertBlockingShown(pkg)` / `assertNothingBlocked()` | `shadowOf(app).nextStartedActivity` → `BlockingActivity` with `EXTRA_BLOCKED_PACKAGE` |
 | `assertEffectsDegraded(b)` | `FocusStateReader.effectsStatus.value.isDegraded` |
 | `eventually(timeout = 5s) { }` / `idle()` | loops `shadowOf(mainLooper).idle()` + a short sleep until the assertion holds. DataStore uses real `Dispatchers.IO` (no virtual time in E2E). |
 
-**`killProcess()` (simulated process death):** (1) destroy the activity scenarios and service controllers the harness holds; (2) `cancelAndJoin` the old `@ApplicationScope` job, which releases the DataStore file locks and unregisters receivers (R2.2); (3) **rebuild the Hilt SingletonComponent** through `HiltProcess.restart(app)`: reflectively set `TestApplicationComponentManager.component` to null and invoke its private `tryToCreateComponent()`. These are the only two reflective touches, isolated in one file and checked against Hilt 2.60.1 bytecode. The new graph uses the same `@TestInstallIn` modules and the same Robolectric `filesDir`, so the DataStore files persist. (4) Carry "outside world" state into the new fakes: the clock instant/zone and NFC availability. `NotificationManager` and `Settings` state survive by design, as on a real device. **Self-test (T1):** `scanTagDirect(ACTIVATE)` → FOCUS; `killProcess()` → `FocusStateReader` is a different instance and (with the in-memory placeholder) the mode is FREE again. That proves a fresh graph. T2 rewrites the self-test expectation to FOCUS when its store lands. **Fallback** if the reflection breaks on a Hilt upgrade: E2E-7/8 seed the DataStore before the first injection (`@Before`, using T2's store with a standalone scope), then start a single process.
+**Process death = cold start from persisted state.** A Hilt test has exactly one `SingletonComponent`, and Hilt has no public API to rebuild it. (Rebuilding it reflectively needs three private touches in 2.60.1, namely `component`, `onComponentReadyRunner` and `tryToCreateComponent()`, so that approach was rejected.) A real new process holds nothing but the files on disk, so the harness reproduces that state instead. `seedPreferences(file) { store -> … }` opens a standalone Preferences DataStore on `context.preferencesDataStoreFile(file)` with its own scope, runs the block, then `cancelAndJoin`s the scope, which releases DataStore's single-instance lock. It throws `IllegalStateException` if the graph was already touched. E2E-7 seeds `focus_state` through T2's store (T2 keeps `FocusStateStore` constructible from a `DataStore<Preferences>`), adds one OFF zen rule of ours to `NotificationManager` (the leftover from the "previous process"), then calls `startApp()` and asserts FOCUS, the rule active, exactly one rule, and the notification shown. E2E-8 seeds the same way and calls `reboot()` instead of `startApp()`. T2 tests survival across store re-creation at unit level, and T4 tests rule adoption at unit level. **Self-test (T1):** `scanTagDirect(ACTIVATE)` → `assertMode(FOCUS)`. Seeding the same file twice works, which proves the lock is released. Seeding after a graph access throws.
 
 Assumption for E2E-6 (handed to T5): the service remembers the last foreground package from its window events and re-checks it on the FREE→FOCUS edge, with `rootInActiveWindow` only as a fallback. That keeps the scenario drivable via `openApp(pkg)` before `scanTag(ACTIVATE)`.
 
 ##### R7. Files T1 creates
 
-`settings.gradle.kts`, `build.gradle.kts`, `gradle.properties`, `gradle/libs.versions.toml`, `gradle/wrapper/*`, `gradlew`, `gradlew.bat`, `.gitignore`, `.github/workflows/ci.yml`, `scripts/setup-android-sdk.sh`; `app/build.gradle.kts`, `app/proguard-rules.pro`, `app/lint.xml`; `app/src/main/AndroidManifest.xml`, `res/xml/accessibility_service_config.xml`, `res/values/{strings,themes,colors}.xml`, `res/drawable/ic_launcher_{foreground,background}.xml`, `res/mipmap-anydpi/ic_launcher{,_round}.xml`; main sources `FocusTagApp`, `MainActivity`, `di/{AppModule,TimeModule,CoroutinesModule,Qualifiers,DeviceClock,AppStartRunner}`, `ui/theme/{Color,Theme,Type}`, `ui/nav/{FocusTagNavHost,Routes,StartViewModel}`, `ui/common/PermissionBanner`, `ui/status/StatusDestination` (placeholder), `ui/setup/SetupDestination` (placeholder), the 4 `Contracts.kt`, the per-layer modules and placeholders and stubs from R4; tests `testing/*` (R5), `testing/di/{TestTimeModule,TestNfcGatewayModule}`, `e2e/{FocusTagE2E,HarnessEntryPoint,HiltProcess,SystemGrant}`, `e2e/HarnessSelfTest`, `SmokeTest` (JVM), `ui/nav/NavigationTest` (Robolectric Compose: Setup start, Status ↔ Setup once paired via the placeholder repo), `HiltGraphTest` (`@HiltAndroidTest` launching `MainActivity`). DECISIONS: D-07 (Android 17 changes), and a correction to D-01/D-06 (`android-37.0`, Kotlin 2.3.21).
+`settings.gradle.kts`, `build.gradle.kts`, `gradle.properties`, `gradle/libs.versions.toml`, `gradle/wrapper/*`, `gradlew`, `gradlew.bat`, `.gitignore`, `.github/workflows/ci.yml`, `scripts/setup-android-sdk.sh`; `app/build.gradle.kts`, `app/proguard-rules.pro`, `app/lint.xml`; `app/src/main/AndroidManifest.xml`, `res/xml/accessibility_service_config.xml`, `res/values/{strings,themes,colors}.xml`, `res/drawable/ic_launcher_{foreground,background}.xml`, `res/mipmap-anydpi/ic_launcher{,_round}.xml`; main sources `FocusTagApp`, `MainActivity`, `di/{AppModule,TimeModule,CoroutinesModule,Qualifiers,DeviceClock,AppStartRunner}`, `ui/theme/{Color,Theme,Type}`, `ui/nav/{FocusTagNavHost,Routes,StartViewModel}`, `ui/common/PermissionBanner`, `ui/status/StatusDestination` (placeholder), `ui/setup/SetupDestination` (placeholder), the 4 `Contracts.kt`, the per-layer modules and placeholders and stubs from R4; tests `testing/*` (R5), `testing/di/{TestTimeModule,TestNfcGatewayModule}`, `e2e/{FocusTagE2E,HarnessEntryPoint,SystemGrant}`, `e2e/HarnessSelfTest`, `SmokeTest` (JVM), `ui/nav/NavigationTest` (Robolectric Compose: Setup start, Status ↔ Setup once paired via the placeholder repo), `HiltGraphTest` (`@HiltAndroidTest` launching `MainActivity`). DECISIONS: D-07 (Android 17 changes), and a correction to D-01/D-06 (`android-37.0`, Kotlin 2.3.21).
 
 ##### R8. Risks / open questions
 
-* **Hilt component rebuild via reflection** (R6) is the only non-public API use. It's gated by the harness self-test, and the fallback is described above.
+* **Cold-start seeding** (R6) relies on DataStore releasing its file lock when the scope completes (DataStore ≥ 1.1). The harness self-test guards this.
 * **Maven Central rate limiting (HTTP 429 seen through the proxy)** when Robolectric downloads android-all (~170 MB) on a cold cache. Mitigation: retry, keep the `~/.m2` cache, CI caching. If it persists, pin `robolectric.dependency.repo.url`.
 * **Kotlin 2.3.21 instead of 2.4.20.** This is a deliberate compatibility choice (R1). Revisit when KSP/Dagger ship 2.4-based releases.
 * **`compileSdk` DSL for minor SDK levels** (`android-37.0`): verified only by the first build. Fallback in R1.
