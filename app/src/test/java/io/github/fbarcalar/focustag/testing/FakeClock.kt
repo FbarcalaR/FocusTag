@@ -13,6 +13,7 @@ class FakeClock(
 ) : Clock() {
     override fun getZone(): ZoneId = zoneId
 
+    /** A detached snapshot: later [set]/[advanceBy] calls on this clock do not move the copy. */
     override fun withZone(zone: ZoneId): Clock = FakeClock(now, zone)
 
     override fun instant(): Instant = now
