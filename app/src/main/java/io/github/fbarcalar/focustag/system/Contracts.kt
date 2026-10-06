@@ -55,7 +55,10 @@ sealed interface PermissionAction {
 /**
  * One row of the permission checklist.
  *
+ * @property id which permission or setting this row checks.
+ * @property status whether it is currently in place.
  * @property required whether FOCUS works as designed only with this granted.
+ * @property action how the user can grant it.
  */
 data class PermissionItem(
     val id: PermissionId,

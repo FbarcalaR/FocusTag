@@ -79,6 +79,7 @@ interface NfcGateway {
 /**
  * A paired tag (D-11).
  *
+ * @property role what scanning this tag does.
  * @property tagId random UUID written into the tag's URI.
  * @property uidHex hardware UID the scan must match (D-12).
  */

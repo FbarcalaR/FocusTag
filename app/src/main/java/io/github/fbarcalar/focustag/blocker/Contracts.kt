@@ -27,7 +27,12 @@ interface BlockListRepository {
     suspend fun remove(packageName: String): RemoveResult
 }
 
-/** A launchable app the user can block. */
+/**
+ * A launchable app the user can block.
+ *
+ * @property packageName the app's package, used as the block-list key.
+ * @property label the user-visible app name.
+ */
 data class InstalledApp(val packageName: String, val label: String)
 
 /** Source of launchable apps (D-24). */
