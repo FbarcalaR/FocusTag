@@ -609,7 +609,7 @@ Cross-layer scenarios E2E-1…13 aren't T2's (T2 merges first in G2); later merg
 
 ---
 
-### T4 — System layer: DND + grayscale mode, fallback, permission checker · status: `todo`
+### T4 — System layer: DND + grayscale mode, fallback, permission checker · status: `in-progress`
 **Goal:** `FocusEffects` turns DND + grayscale on/off through one AutomaticZenRule, with an optional secure-settings fallback and a live permission checklist.
 **Owns:** `system/**` except `Contracts.kt` (incl. `system/di/SystemModule.kt`), `res/values/strings_system.xml`, `test/.../system/**`.
 **Depends on:** T1. **Decisions:** D-30–D-35, D-47, D-25.
@@ -622,6 +622,77 @@ Cross-layer scenarios E2E-1…13 aren't T2's (T2 merges first in G2); later merg
 
 **Acceptance criteria:** activate/deactivate are idempotent; no duplicate rules after repeated calls or process death; `SecurityException` is surfaced as a status, not a crash; fallback restores the exact previous values; every checklist item has a correct status and a resolvable intent; the adb command contains the real `applicationId`.
 **Test strategy:** Robolectric with `ShadowNotificationManager` (verify rule creation, state calls, device effects, duplicate prevention); fallback tested against Robolectric `Settings.Secure` with the permission granted/denied via `ShadowApplication`; permission checker tests per item; intent resolution assertions. Slice E2E: `FocusEffects` enable/disable through the real graph.
+
+#### Refinement notes (T4)
+
+##### S1. API facts checked (android-37.0 stubs + `api-versions.xml`, Robolectric 4.17 `ShadowNotificationManager` bytecode)
+
+* API 35+: `AutomaticZenRule.Builder(name, conditionId)` with `setType(TYPE_OTHER)`, `setConfigurationActivity`, `setInterruptionFilter`, `setZenPolicy`, `setDeviceEffects`, `setTriggerDescription`; `ZenDeviceEffects.Builder().setShouldDisplayGrayscale(true)`; `NotificationManager.getAutomaticZenRuleState(id)`; `Condition(uri, summary, state, source)` with `SOURCE_USER_ACTION`. On API 33/34 (minSdk 33) only the API 29 constructor `AutomaticZenRule(name, owner, configActivity, conditionId, ZenPolicy, filter, enabled)` and `Condition(uri, summary, state)` exist, and the rule state can't be read.
+* `addAutomaticZenRule` / `getAutomaticZenRules` / `setAutomaticZenRuleState` (API 24) throw `SecurityException` without policy access. `ACTION_AUTOMATIC_ZEN_RULE_STATUS_CHANGED` is API 30 (T2 listens to it, D-34).
+* `owner` must be a `ConditionProviderService`; we have none, so the rule sets **only `configurationActivity = MainActivity`** (correction to D-30's "owner/configuration activity"). The rule is ours when `conditionId == ZEN_CONDITION_ID` (`focustag://zen/focus`) and the config activity is in our package (the harness `ZenRules` filter matches too).
+* The daltonizer keys are `@hide`, so they are string literals: `accessibility_display_daltonizer_enabled`, `accessibility_display_daltonizer`.
+* Robolectric shadow: static rule/state maps reset per test. `getAutomaticZenRules()` returns **every** rule (the real OS returns only the caller's), so we filter. Rules are parcel-copied, so device effects round-trip. A never-set state reads `STATE_UNKNOWN` (2). Every call enforces policy access (default **denied**), and no broadcasts are sent. `ShadowPowerManager.setIgnoringBatteryOptimizations` and `ShadowSettings.ShadowSecure` (no permission enforcement) cover the rest. Only android-all 37 is cached locally.
+
+##### S2. Classes (package `system`, every file ≤ 200 lines)
+
+| File | Responsibility / signature |
+|------|----------------------------|
+| `zen/ZenRuleSpec.kt` | `class ZenRuleSpec @Inject constructor(@ApplicationContext ctx)`: `fun newRule(): AutomaticZenRule` (API ≥ 35: Builder + `TYPE_OTHER` + `INTERRUPTION_FILTER_PRIORITY` + policy + grayscale effects; below 35: the legacy ctor without effects), `fun condition(active: Boolean): Condition` (with `SOURCE_USER_ACTION` on ≥ 35), `fun isOurs(rule: AutomaticZenRule): Boolean`. Policy: `ZenPolicy.Builder().disallowAllSounds().hideAllVisualEffects()` (nothing allowed, D-30). Name/trigger text from `strings_system.xml`. |
+| `zen/ZenRuleSelection.kt` | Pure: `data class OwnedRule(val id: String, val createdAtMs: Long)`, `data class RuleChoice(val keep: String?, val duplicates: List<String>)`, `fun chooseRule(rules: List<OwnedRule>): RuleChoice` (oldest wins, tie by id). |
+| `zen/ZenOutcome.kt` | `sealed interface ZenOutcome { Applied; AccessDenied; NotApplied }` (`NotApplied` = state still not TRUE after re-assert, e.g. the user disabled the mode, API ≥ 35 only). |
+| `zen/ZenRuleController.kt` | `@Singleton`, wraps `NotificationManager`. `suspend fun activate(): ZenOutcome`: no policy access → `AccessDenied`; `ensureRule()` = list ours → `chooseRule` → remove duplicates → adopt `keep` or `addAutomaticZenRule(spec.newRule())` (also re-creates a deleted rule, D-35); if state ≠ TRUE → `setState(FALSE)` then `setState(TRUE)` (D-34 re-assert; below 35 always sent, state unknowable); verify state on ≥ 35. `suspend fun deactivate(): ZenOutcome`: no access → `AccessDenied`; find ours (never creates), set FALSE unless already FALSE; no rule → `Applied`. Every NM call is in `catching { }` mapping `SecurityException → AccessDenied` (revocation race). It runs on `@IoDispatcher`. Existing rules are adopted, **not updated** (Android 15 keeps user edits anyway). |
+| `grayscale/DaltonizerSettings.kt` | Thin adapter over `Settings.Secure`: `data class DaltonizerValues(val enabled: String?, val mode: String?)`, `fun read(): DaltonizerValues`, `fun write(values): Boolean` (`putString`, so `null` restores "unset"; `SecurityException → false`), `val GRAYSCALE = DaltonizerValues("1", "0")`. |
+| `grayscale/DaltonizerSnapshotStore.kt` | Snapshot of the pre-FOCUS values in the system DataStore: `suspend fun saved(): DaltonizerValues?`, `suspend fun saveIfAbsent(values)`, `suspend fun clear()`. It persists across process death, so a FREE scan in a new process still restores. |
+| `grayscale/SecureSettingsGrayscale.kt` | `fun isGranted()` (`checkSelfPermission(WRITE_SECURE_SETTINGS)`). `suspend fun enable(): FallbackOutcome`: not granted → `NotGranted`; `saveIfAbsent(read())` (a re-enable never overwrites the original with our own grayscale values), then `write(GRAYSCALE)`. `suspend fun disable()`: no snapshot → `Applied` (no-op); not granted → `NotGranted` (snapshot kept for later); else `write(snapshot)` + `clear()`. `sealed interface FallbackOutcome { Applied; NotGranted }`. |
+| `grayscale/DataStoreGrayscaleFallbackSettings.kt` | Implements `GrayscaleFallbackSettings` on the system DataStore (default false). |
+| `SystemFocusEffects.kt` | `@Singleton`, implements `FocusEffects`, with one `Mutex` (concurrent reconciles from boot/app-start/receiver can't create two rules or double-snapshot). `enable()`: `zen.activate()`, then `if (fallback.enabled.first()) grayscale.enable() else grayscale.disable()` (a fallback switched off mid-session is restored at the next reconcile). `disable()`: `zen.deactivate()` + `grayscale.disable()` (always, so values are restored even if the toggle was turned off). Non-`Applied` outcomes map to `Effect.ZEN_RULE` / `Effect.GRAYSCALE_FALLBACK` in `EffectsStatus.failed`. Never throws for permission problems. |
+| `permissions/PermissionStatusReader.kt` | Adapter, one `fun` per OS-read item: accessibility (parse `ENABLED_ACCESSIBILITY_SERVICES` with `ComponentName.unflattenFromString`; GRANTED if any entry is in our package, so no class reference into `blocker`), policy access (`isNotificationPolicyAccessGranted`), `POST_NOTIFICATIONS` / `WRITE_SECURE_SETTINGS` (`checkSelfPermission`), battery (`PowerManager.isIgnoringBatteryOptimizations(pkg)`), grayscale capability (SDK < 35 → `UNSUPPORTED`, else = policy access). |
+| `permissions/PermissionActions.kt` | `fun actionFor(id): PermissionAction`, see S3. |
+| `permissions/PermissionChangeSignals.kt` | `val changes: Flow<Unit>`: `callbackFlow` merging a `ContentObserver` on `Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES` and a receiver (`RECEIVER_NOT_EXPORTED`) for `ACTION_NOTIFICATION_POLICY_ACCESS_GRANTED_CHANGED`; both unregister in `awaitClose` (R2.2). It replaces subtask 4's `AccessibilityManager` state listener, which fires on *any* service and only duplicates the observer. |
+| `permissions/AndroidPermissionChecker.kt` | `@Singleton`, implements `PermissionChecker`. `items` is a `MutableStateFlow` built from `PermissionId.entries` (enum order). `refresh()` re-evaluates **synchronously** (deterministic in tests; about 6 cheap binder/settings reads on ON_RESUME). On the `@ApplicationScope` it collects `NfcGateway.availability` (NFC is live) and `PermissionChangeSignals.changes` → `refresh()`. The NFC value starts as `ENABLED` until the first emission, so no false banner flashes. |
+| `di/SystemModule.kt` | `@Binds` the three contracts to the real classes. A companion `@Provides @Singleton @SystemDataStore DataStore<Preferences>` (file `system_settings`, scope `appScope.coroutineContext + io`, R2.2). The qualifier `@SystemDataStore` is defined in `system/di/` because other layers also provide `DataStore<Preferences>`. |
+
+The three `Placeholder*` files are deleted.
+
+##### S3. Checklist items (`required` drives the Status banner)
+
+| Id | Status source | Action | Required |
+|----|---------------|--------|----------|
+| NFC_ENABLED | `NfcGateway.availability`: ENABLED→GRANTED, DISABLED→MISSING, UNAVAILABLE→UNSUPPORTED | `OpenSettings([ACTION_NFC_SETTINGS])` | yes |
+| ACCESSIBILITY_SERVICE | `Settings.Secure` string (above) | `OpenSettings([ACTION_ACCESSIBILITY_SETTINGS, ACTION_APPLICATION_DETAILS_SETTINGS package:<pkg>])` (D-25) | yes |
+| NOTIFICATION_POLICY_ACCESS | `isNotificationPolicyAccessGranted` | `OpenSettings([ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS])` | yes |
+| POST_NOTIFICATIONS | `checkSelfPermission` | `RequestRuntime(POST_NOTIFICATIONS, ACTION_APP_NOTIFICATION_SETTINGS + EXTRA_APP_PACKAGE)` | yes |
+| BATTERY_OPTIMIZATION_EXEMPTION | `isIgnoringBatteryOptimizations` | `OpenSettings([ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS package:<pkg>, ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS])`, `@SuppressLint("BatteryLife")` per D-47 | no (recommended: Focus works without it) |
+| GRAYSCALE_CAPABILITY | SDK ≥ 35 && policy access | same as policy access | no (derived from DND access; not shown twice in the banner) |
+| WRITE_SECURE_SETTINGS | `checkSelfPermission` | `AdbGrant("adb shell pm grant ${context.packageName} android.permission.WRITE_SECURE_SETTINGS")` (`packageName` = `applicationId`, since there is no suffix) | no |
+
+##### S4. DataStore `system_settings` keys
+
+`grayscale_fallback_enabled` (Boolean), `daltonizer_snapshot_saved` (Boolean; it is needed because `null` previous values are legitimate), `daltonizer_prev_enabled` (String, absent = unset), `daltonizer_prev_mode` (String, absent = unset). **No zen rule id is persisted** (this replaces "persisted rule id" in subtask 1). The OS listing filtered by `isOurs` is the source of truth: a stored id can go stale (the user deletes the mode, or revoking DND access makes the OS remove our rules), and adoption plus dedupe needs the listing anyway. This also covers E2E-7 (a leftover rule from a "previous process" is adopted and no second rule is created).
+
+##### S5. Error handling
+
+`SecurityException` is caught only in `ZenRuleController` and `DaltonizerSettings` (adapter boundary) and becomes `AccessDenied` / `NotGranted` → `EffectsStatus.failed`. Missing access is checked up front, so the normal path never throws. Nothing else is caught; programmer errors propagate. `deactivate()` without access also reports `ZEN_RULE` failed. This is honest: we can't confirm the rule is off, although the OS normally deletes our rules on revocation.
+
+##### S6. Tests
+
+* **JVM:** `ZenRuleSelectionTest`: none → nothing kept; one → kept; several → oldest kept, the rest are duplicates; tie broken by id.
+* **Robolectric `ZenRuleControllerTest`** (policy access granted via the shadow unless stated): first activation creates one rule with TYPE_OTHER, PRIORITY, our condition id, config activity `MainActivity`, grayscale device effects and a policy with calls/messages/alarms disallowed; activation sets the state to TRUE; activating twice keeps one rule and makes no extra state change; an existing rule of ours is adopted instead of creating a new one; duplicate rules of ours are reduced to one; other packages' / other condition ids' rules are untouched; a rule switched off externally is re-activated; a rule deleted externally is re-created; deactivation sets FALSE; deactivation without a rule creates nothing; without policy access activation returns AccessDenied and creates nothing; access revoked between check and call (shadow throws) → AccessDenied. One `@Config(sdk = [34])` test: the legacy rule is created and set TRUE (see R-T4-3).
+* **Robolectric `SecureSettingsGrayscaleTest`** (temp DataStore, `shadowOf(app).grant/denyPermissions`): without the grant, enable returns NotGranted and settings are untouched; enable writes `1`/`0` and snapshots the previous values; disable restores the exact previous values, including previously **unset** keys; enabling twice keeps the original snapshot; disable without a snapshot is a no-op; the snapshot survives store re-creation and is restored by a new instance; disable after the grant is lost returns NotGranted and keeps the snapshot.
+* **Robolectric `DataStoreGrayscaleFallbackSettingsTest`:** off by default; the toggle persists across store re-creation.
+* **Robolectric `SystemFocusEffectsTest`** (real controller and grayscale, temp DataStore): enable with access is healthy and the rule is active; enable without access fails ZEN_RULE only; fallback on without the grant fails GRAYSCALE_FALLBACK only; fallback on with the grant applies grayscale and disable restores it; a fallback switched off mid-session is restored on the next enable; disable switches the rule off and is healthy; 20 concurrent enables leave exactly one rule.
+* **Robolectric `PermissionStatusReaderTest` / `AndroidPermissionCheckerTest`:** one test per item and status (NFC × 3 via `FakeNfcGateway`; accessibility enabled / other package's service only / empty; policy access; notifications; battery via `ShadowPowerManager`; grayscale capability GRANTED/MISSING on 37; secure settings); items cover every `PermissionId` once in enum order with the S3 `required` flags; `refresh()` picks up a changed grant; an NFC flow change updates items without `refresh()`; the policy-access broadcast and the accessibility settings observer trigger re-evaluation.
+* **Robolectric `PermissionActionsTest`:** action, data and extras of every intent (compared field-wise, R8); accessibility has the settings intent plus App info `package:io.github.fbarcalar.focustag`; the adb command equals the exact string with the real `applicationId`; each `OpenSettings` intent resolves against the matching activity registered in `ShadowPackageManager`. Real resolution on the Pixel is covered by MC-10/T7.
+* **Slice E2E `system/SystemSliceE2ETest`** (`FocusTagE2E`, `scanTagDirect`, so it works with the placeholder or the real engine): `grant(NOTIFICATION_POLICY)` + ACTIVATE → `assertZenRuleActive(true)`, not degraded; then DEACTIVATE → `assertZenRuleActive(false)`; without DND access, ACTIVATE → FOCUS, `assertEffectsDegraded(true)`, no crash; `revoke`/`grant(ACCESSIBILITY_SERVICE)` and `grant(WRITE_SECURE_SETTINGS)` flip the matching items of the real `PermissionChecker`. `@After` cancels the app scope (harness). Cross-layer E2E-1/4/7/8/9/10 are written by whichever task's merge completes their set (§2.2; T4 merges after T2, so T4 writes E2E-7, -8 and -10 at Integrate. E2E-1/4 need T3 and E2E-9 needs T6.)
+
+##### S7. Risks / open questions
+
+* **R-T4-1** Whether `getAutomaticZenRuleState` reports a user's QS deactivation as FALSE, and whether FALSE→TRUE with `SOURCE_USER_ACTION` beats that override on Android 16, can't be tested on the JVM → MC-07. If it doesn't, `activate()` returns `NotApplied` and Status shows degraded instead of silently failing.
+* **R-T4-2** A mode the user *disabled* (not just deactivated) in Settings can't be re-enabled by the app without overriding user settings. We report `NotApplied` and don't update the rule.
+* **R-T4-3** The `@Config(sdk = [34])` test needs android-all 14 (not cached; downloaded through the Maven mirror). If it can't be fetched, drop that one test and rely on lint `NewApi` plus the small, separate legacy branch.
+* **R-T4-4** Toggling the fallback in Setup takes effect at the next reconcile (next scan/app start/boot), not instantly. This is acceptable because Setup is usually used in FREE. Instant application would need a `reconcile()` entry point in `focus` contracts (no contract change requested).
+* **R-T4-5** The `PRIORITY` filter with a nothing-allowed policy also silences alarms (D-30 "allows nothing"). Verified by MC-06; relaxing it is a one-line `allowAlarms(true)` if the user wants it.
+* **R-T4-6** `system` references `MainActivity` (T1, app root) for the config activity. It's a class reference, not an edit, and it's compile-checked.
 
 ---
 
