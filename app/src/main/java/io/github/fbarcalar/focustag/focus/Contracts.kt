@@ -108,7 +108,11 @@ interface FocusEffects {
     suspend fun disable(): EffectsStatus
 }
 
-/** Work to run once per process start; contributed with `@IntoSet` (D-43). */
+/**
+ * Work to run once per process start; contributed with `@IntoSet` (D-43). Expected failures
+ * (e.g. a revoked permission) must be handled inside the hook as typed results; anything thrown
+ * is treated as a bug, logged and swallowed by the runner.
+ */
 fun interface AppStartHook {
     /** Runs on the application scope from `FocusTagApp.onCreate`. */
     suspend fun onAppStart()

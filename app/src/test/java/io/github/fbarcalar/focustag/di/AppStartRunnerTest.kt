@@ -1,26 +1,23 @@
 package io.github.fbarcalar.focustag.di
 
+import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.common.truth.Truth.assertThat
 import io.github.fbarcalar.focustag.focus.AppStartHook
-import kotlinx.coroutines.CoroutineExceptionHandler
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.runTest
 import org.junit.Test
+import org.junit.runner.RunWith
 
-@OptIn(ExperimentalCoroutinesApi::class)
+/** Robolectric only for `android.util.Log`. */
+@RunWith(AndroidJUnit4::class)
 class AppStartRunnerTest {
-    private val ignoreFailures = CoroutineExceptionHandler { _, _ -> }
-    private val scope = CoroutineScope(SupervisorJob() + UnconfinedTestDispatcher() + ignoreFailures)
-
     @Test
-    fun `every hook runs even when another hook fails`() {
+    fun `a failing hook is swallowed and the other hooks still run`() = runTest {
         val ran = mutableListOf<String>()
         val failing = AppStartHook { error("boom") }
         val working = AppStartHook { ran += "working" }
 
-        AppStartRunner(linkedSetOf(failing, working), scope).run()
+        AppStartRunner(linkedSetOf(failing, working), this).run()
+        testScheduler.advanceUntilIdle()
 
         assertThat(ran).containsExactly("working")
     }
