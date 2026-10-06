@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">FocusTag</string>
+    <string name="title_status">Status</string>
+    <string name="title_setup">Setup</string>
+    <string name="action_open_setup">Open setup</string>
+    <string name="action_back">Back</string>
+    <string name="accessibility_service_description">Shows a blocking screen when you open an app from your block list during a focus session. FocusTag does not read or store screen content.</string>
+    <plurals name="permission_banner_missing">
+        <item quantity="one">%d required permission is missing. Tap to fix it in Setup.</item>
+        <item quantity="other">%d required permissions are missing. Tap to fix them in Setup.</item>
+    </plurals>
+</resources>
