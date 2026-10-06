@@ -1,20 +1,50 @@
 package io.github.fbarcalar.focustag.nfc.di
 
+import android.content.Context
+import androidx.datastore.core.handlers.ReplaceFileCorruptionHandler
+import androidx.datastore.preferences.core.PreferenceDataStoreFactory
+import androidx.datastore.preferences.core.emptyPreferences
+import androidx.datastore.preferences.preferencesDataStoreFile
 import dagger.Binds
 import dagger.Module
+import dagger.Provides
 import dagger.hilt.InstallIn
+import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
+import io.github.fbarcalar.focustag.di.ApplicationScope
+import io.github.fbarcalar.focustag.di.IoDispatcher
 import io.github.fbarcalar.focustag.nfc.PairingRepository
-import io.github.fbarcalar.focustag.nfc.PlaceholderPairingRepository
 import io.github.fbarcalar.focustag.nfc.PlaceholderTagWriter
+import io.github.fbarcalar.focustag.nfc.TagPairingStore
 import io.github.fbarcalar.focustag.nfc.TagWriter
+import javax.inject.Singleton
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.CoroutineScope
 
 @Module
 @InstallIn(SingletonComponent::class)
-interface NfcModule {
+abstract class NfcModule {
     @Binds
-    fun pairingRepository(repository: PlaceholderPairingRepository): PairingRepository
+    abstract fun pairingRepository(store: TagPairingStore): PairingRepository
 
     @Binds
-    fun tagWriter(writer: PlaceholderTagWriter): TagWriter
+    abstract fun tagWriter(writer: PlaceholderTagWriter): TagWriter
+
+    companion object {
+        private const val PAIRINGS_FILE = "tag_pairings"
+
+        /** The DataStore stays private to the store, so no unqualified `DataStore` binding exists (R2.2). */
+        @Provides
+        @Singleton
+        fun tagPairingStore(
+            @ApplicationContext context: Context,
+            @ApplicationScope appScope: CoroutineScope,
+            @IoDispatcher io: CoroutineDispatcher,
+        ): TagPairingStore = TagPairingStore(
+            PreferenceDataStoreFactory.create(
+                corruptionHandler = ReplaceFileCorruptionHandler { emptyPreferences() },
+                scope = CoroutineScope(appScope.coroutineContext + io),
+            ) { context.preferencesDataStoreFile(PAIRINGS_FILE) },
+        )
+    }
 }
