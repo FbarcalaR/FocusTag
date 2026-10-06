@@ -18,7 +18,7 @@ import io.github.fbarcalar.focustag.di.IoDispatcher
 import io.github.fbarcalar.focustag.focus.FocusEffects
 import io.github.fbarcalar.focustag.system.GrayscaleFallbackSettings
 import io.github.fbarcalar.focustag.system.PermissionChecker
-import io.github.fbarcalar.focustag.system.PlaceholderFocusEffects
+import io.github.fbarcalar.focustag.system.SystemFocusEffects
 import io.github.fbarcalar.focustag.system.PlaceholderPermissionChecker
 import io.github.fbarcalar.focustag.system.grayscale.DataStoreGrayscaleFallbackSettings
 import javax.inject.Qualifier
@@ -35,7 +35,7 @@ annotation class SystemDataStore
 @InstallIn(SingletonComponent::class)
 interface SystemModule {
     @Binds
-    fun focusEffects(effects: PlaceholderFocusEffects): FocusEffects
+    fun focusEffects(effects: SystemFocusEffects): FocusEffects
 
     @Binds
     fun permissionChecker(checker: PlaceholderPermissionChecker): PermissionChecker
