@@ -1,0 +1,38 @@
+package io.github.fbarcalar.focustag.focus.stats
+
+import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneId
+import kotlin.time.Duration
+import java.time.Duration as JavaDuration
+import kotlin.time.toKotlinDuration
+
+/** Splits [start, end) into the local days it covers (D-42); empty when [end] is not after [start]. */
+fun splitByDay(start: Instant, end: Instant, zone: ZoneId): Map<LocalDate, Duration> {
+    if (!end.isAfter(start)) return emptyMap()
+    val lastDay = LocalDate.ofInstant(end, zone)
+    return generateSequence(LocalDate.ofInstant(start, zone)) { it.plusDays(1) }
+        .takeWhile { !it.isAfter(lastDay) }
+        .associateWith { day -> overlap(day, start, end, zone) }
+        .filterValues { it.isPositive() }
+}
+
+/** These totals plus the session [start, end), split by day. */
+fun Map<LocalDate, Duration>.plusSession(start: Instant, end: Instant, zone: ZoneId): Map<LocalDate, Duration> {
+    val session = splitByDay(start, end, zone)
+    return (keys + session.keys).associateWith { day ->
+        (this[day] ?: Duration.ZERO) + (session[day] ?: Duration.ZERO)
+    }
+}
+
+/** Only the days from [firstDay] on. */
+fun Map<LocalDate, Duration>.retainFrom(firstDay: LocalDate): Map<LocalDate, Duration> =
+    filterKeys { !it.isBefore(firstDay) }
+
+private fun overlap(day: LocalDate, start: Instant, end: Instant, zone: ZoneId): Duration {
+    val dayStart = day.atStartOfDay(zone).toInstant()
+    val dayEnd = day.plusDays(1).atStartOfDay(zone).toInstant()
+    val from = maxOf(start, dayStart)
+    val to = minOf(end, dayEnd)
+    return JavaDuration.between(from, to).toKotlinDuration()
+}
