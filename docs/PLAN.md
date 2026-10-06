@@ -107,7 +107,7 @@ E2E tests are **not** a final phase. T1 ships an E2E harness: `test/.../e2e/Focu
 
 ## 3. Tasks
 
-### T1 — Project skeleton, DI, navigation, contracts, CI · status: `in-progress`
+### T1 — Project skeleton, DI, navigation, contracts, CI · status: `review`
 **Goal:** A buildable Compose app where all three Gradle commands pass, with frozen cross-layer contracts so later tasks can run in parallel.
 **Owns:** root Gradle files, `gradle/`, `gradlew*`, `settings.gradle.kts`, `app/build.gradle.kts`, `app/proguard-rules.pro`, `app/lint.xml`, `.gitignore`, `.github/workflows/ci.yml`, `scripts/setup-android-sdk.sh`, `AndroidManifest.xml`, `res/xml/*`, `res/values/{strings,themes,colors}.xml`, launcher icons, `FocusTagApp.kt`, `MainActivity.kt`, `di/`, `ui/theme/`, `ui/nav/`, `ui/common/`, every `*/Contracts.kt`, every `*/di/<Layer>Module.kt` + `Placeholder*.kt` (handed over to the layer task once T1 is done), `app/src/test/.../testing/` fakes, `app/src/test/.../e2e/FocusTagE2E.kt`.
 **Depends on:** —
@@ -393,6 +393,16 @@ Assumption for E2E-6 (handed to T5): the service remembers the last foreground p
 * **Robolectric SDK 37** is new (android-all built July 2026). Compose or `MessageQueue` issues → `sdk=36` fallback in `robolectric.properties` (target stays 37).
 * `PermissionItem` holds `Intent`s, which have no structural `equals`. Tests compare `action`/`component`, not the item.
 * Global `@TestInstallIn` means every Hilt test sees `FakeNfcGateway`/`FakeClock`. That's intended (hardware edges); a layer test that needs something else uses `@BindValue`.
+
+##### R9. Implementation notes (T1, as built)
+
+* Robolectric SDK 37 on JDK 21 needs extra test-JVM flags, and Espresso 3.7.0 is pinned (D-08). Compose tests use the `junit4.v2` rule factories: v1 is deprecated, and v2 uses `StandardTestDispatcher`, so call `waitForIdle()` where effects must settle.
+* The harness lives in `e2e/` and is split to respect the file-size limit: `FocusTagE2E` (DSL), `HarnessEntryPoint`, `HarnessTags` (`A`/`B` pairings, URI builder), `SystemGrant`, `ZenRules` (OS-side zen rule access; it lifts the shadow's policy-access check the way the OS would) and `Polling` (`idleMainLooper`, `retryUntilPasses`). Also `HarnessSelfTest`.
+* The harness spells out `"android.nfc.action.NDEF_DISCOVERED"` instead of importing `android.nfc` (R2.4).
+* `ui/theme/Type.kt` is not created (YAGNI: default Material typography).
+* `res/xml/data_extraction_rules.xml` excludes all app data from backup/transfer (pairings and the zen rule id are device-bound).
+* Remaining lint warnings: `NewerVersionAvailable` (Kotlin pin, D-02), `UnnecessaryRequiredFeature` (NFC is required by design), and `UnsafeProtectedBroadcastReceiver` on the `BootReceiver` stub. T2 resolves the last one by checking `intent.action`.
+* Local only: this container's proxy gets HTTP 429 from `repo.maven.apache.org`. Builds here use `--init-script` with Google's Maven Central mirror (`maven-central.storage-download.googleapis.com/maven2`). The repository itself keeps plain `mavenCentral()`.
 
 ---
 
