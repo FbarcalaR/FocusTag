@@ -107,7 +107,7 @@ E2E tests are **not** a final phase. T1 ships an E2E harness: `test/.../e2e/Focu
 
 ## 3. Tasks
 
-### T1 — Project skeleton, DI, navigation, contracts, CI · status: `todo`
+### T1 — Project skeleton, DI, navigation, contracts, CI · status: `in-progress`
 **Goal:** A buildable Compose app where all three Gradle commands pass, with frozen cross-layer contracts so later tasks can run in parallel.
 **Owns:** root Gradle files, `gradle/`, `gradlew*`, `settings.gradle.kts`, `app/build.gradle.kts`, `app/proguard-rules.pro`, `app/lint.xml`, `.gitignore`, `.github/workflows/ci.yml`, `scripts/setup-android-sdk.sh`, `AndroidManifest.xml`, `res/xml/*`, `res/values/{strings,themes,colors}.xml`, launcher icons, `FocusTagApp.kt`, `MainActivity.kt`, `di/`, `ui/theme/`, `ui/nav/`, `ui/common/`, every `*/Contracts.kt`, every `*/di/<Layer>Module.kt` + `Placeholder*.kt` (handed over to the layer task once T1 is done), `app/src/test/.../testing/` fakes, `app/src/test/.../e2e/FocusTagE2E.kt`.
 **Depends on:** —
@@ -124,6 +124,274 @@ E2E tests are **not** a final phase. T1 ships an E2E harness: `test/.../e2e/Focu
 
 **Acceptance criteria:** the three commands pass from a clean clone after `scripts/setup-android-sdk.sh`; the app launches to the Setup placeholder; navigation works in the Robolectric test; every contract has KDoc; the manifest contains every component listed above.
 **Test strategy:** Robolectric navigation test, a Hilt graph test (`@HiltAndroidTest` launching `MainActivity`), and the build commands.
+
+#### Refinement notes (T1)
+
+##### R1. Toolchain and versions (checked against maven metadata on 2026-10-06)
+
+| Item | Version | Why / check |
+|------|---------|-------------|
+| JDK (Gradle and test JVM) | 21 | Robolectric needs Java 21 for SDK ≥ 35. Bytecode target is 17 (`compileOptions` plus `kotlin.compilerOptions.jvmTarget`). |
+| AGP | **9.4.1** | Latest stable. Its `VersionCheckPlugin` requires Gradle ≥ 9.6.0. It bundles KGP 2.2.10, which is raised by the Kotlin plugins below. |
+| Gradle wrapper | **9.8.0** | Latest stable (≥ 9.6.0). Fallback: 9.6.1 if AGP warns or fails. |
+| Kotlin (built-in Kotlin, plus the `plugin.compose` and `plugin.serialization` plugins) | **2.3.21** | 2.4.20 is the newest stable release, but KSP 2.3.12 is built on 2.3.20, Hilt 2.60.1 on kotlin-bom 2.3.21 and serialization 1.11 on stdlib 2.3.20. Staying on 2.3.x keeps the whole chain on one Kotlin line. A bump to 2.4.x waits until KSP/Dagger move. |
+| KSP | **2.3.12** | Its plugin detects AGP built-in Kotlin (`isAgpBuiltInKotlinUsed`, which needs AGP ≥ 9.0.0-alpha14). We do **not** apply `kotlin-android`. |
+| Hilt / Dagger (+ `hilt-android-testing`) | **2.60.1** | Its Gradle plugin *requires* AGP ≥ 9.0.0 (checked in `HiltPluginEnvironment`). **D-04 holds: Hilt works and manual DI is not needed.** |
+| `androidx.hilt:hilt-lifecycle-viewmodel-compose` | 1.4.0 | `hiltViewModel()` (it replaces `hilt-navigation-compose`). |
+| Compose BOM | **2026.09.00** | ui 1.12.1, material3 1.4.0, material-icons-core 1.7.8 (Settings and ArrowBack only), ui-test-junit4 / ui-test-manifest. |
+| activity-compose | 1.13.0 | |
+| core-ktx | 1.19.1 | AAR metadata: `minCompileSdk=37`, `minAndroidGradlePluginVersion=9.1.0` (both met). |
+| lifecycle (runtime-compose, viewmodel-compose) | 2.11.0 | |
+| navigation-compose | 2.10.2 | Type-safe `@Serializable` routes. |
+| datastore-preferences | 1.2.1 | |
+| kotlinx-coroutines (android, test) | 1.11.0 | |
+| kotlinx-serialization-core | 1.11.0 | Nav routes only. |
+| JUnit 4 / Truth / Turbine | 4.13.2 / 1.4.5 / 1.2.1 | |
+| Robolectric | **4.17** | `DefaultSdkProvider` includes android-all `17-robolectric-15733970`, so **SDK 37 is supported**. Set `sdk=37` in `app/src/test/resources/robolectric.properties`; fallback `sdk=36` if SDK 37 has a blocking bug. |
+| androidx.test core / ext-junit | 1.7.0 / 1.3.0 | |
+| SDK packages | `platforms;android-37.0`, `build-tools;37.0.0`, `platform-tools`, cmdline-tools `latest` (16111833) | No plain `android-37` package exists, only `android-37.0/.1/.2`. **Correction to D-01/D-06, recorded in DECISIONS during Implement.** |
+
+* `compileSdk { version = release(37) }`, `targetSdk { version = release(37) }`, `minSdk { version = release(33) }` (AGP 9 DSL; it resolves to `platforms/android-37.0`). Fallback if the DSL form fails: `compileSdk = 37`.
+* `gradle.properties`: `org.gradle.jvmargs=-Xmx2g -Dfile.encoding=UTF-8`, `kotlin.compiler.execution.strategy=in-process`, `org.gradle.caching=true`, `org.gradle.configuration-cache=true` (disable if KSP/Hilt break it), `android.useAndroidX=true`. Unit tests: `maxHeapSize = "1g"`, `isIncludeAndroidResources = true`.
+* Root `build.gradle.kts` declares the plugins with `apply false`: `com.android.application`, `org.jetbrains.kotlin.plugin.compose`, `org.jetbrains.kotlin.plugin.serialization`, `com.google.devtools.ksp`, `com.google.dagger.hilt.android`. Putting KGP 2.3.21 on the classpath is what upgrades AGP's built-in Kotlin.
+* **Android 17 target changes to record in DECISIONS (D-07):** static final fields can't be modified via reflection (no impact); lock-free `MessageQueue` (no reflection on it; Robolectric is unaffected); BAL hardening for `IntentSender`/`PendingIntent` (our only `PendingIntent` is the notification's content intent, which is user-initiated, and the blocker starts activities from an accessibility service, so there's no impact; T2 must not use `MODE_BACKGROUND_ACTIVITY_START_ALLOWED`); the large-screen orientation/resizability opt-out is removed (phone only, no impact). All of these apply only on Android 17 devices. The Pixel 10a runs 16.
+* `scripts/setup-android-sdk.sh`: `ANDROID_HOME` defaults to `/opt/android-sdk` if it exists, else `$HOME/android-sdk`. The script is idempotent and installs only what is missing (cmdline-tools zip, the three packages, licences). It writes `local.properties` (`sdk.dir=…`). `/opt/android-sdk` is already provisioned in this container.
+* CI (`.github/workflows/ci.yml`): ubuntu-latest, `actions/setup-java` (temurin 21), `gradle/actions/setup-gradle`, the SDK script, then `./gradlew assembleDebug lint test`. It caches `~/.m2/repository/org/robolectric` (Robolectric downloads android-all there).
+* Lint (`app/lint.xml`): `abortOnError=true`, `warningsAsErrors=false`, no baseline. `GradleDependency`/`NewerVersionAvailable` stay as warnings. The manifest uses `tools:ignore="ProtectedPermissions"` on `WRITE_SECURE_SETTINGS`.
+
+##### R2. Cross-cutting rules the contracts rely on
+
+1. **Time:** inject only `java.time.Clock`. Production binds `DeviceClock`, a `Clock` whose `getZone()` returns `ZoneId.systemDefault()` on every call, so a timezone change is picked up. `FakeClock` is a `Clock` with a mutable instant and zone. This one dependency replaces the "Clock + ZoneId provider" pair in subtask 4.
+2. **Process lifetime:** everything that lives as long as the process (DataStore instances, dynamically registered receivers, collectors) is bound to the `@ApplicationScope CoroutineScope` (`SupervisorJob() + Dispatchers.Default`) and releases on cancellation (`awaitClose` / `finally { unregister }`). Each DataStore is created in its layer's Hilt module with `PreferenceDataStoreFactory.create(scope = CoroutineScope(appScope.coroutineContext + ioDispatcher)) { context.preferencesDataStoreFile("<layer>") }`. **The `by preferencesDataStore` delegate is forbidden**: it's process-static, so it would survive the harness's `killProcess()` and break the single-instance check. File names: `focus_state`, `tag_pairings`, `block_list`, `system_settings`.
+3. **Qualifiers** (`di/Qualifiers.kt`): `@ApplicationScope`, `@IoDispatcher`, `@DefaultDispatcher`. There's no main-dispatcher qualifier (ViewModels use `viewModelScope`).
+4. **Dependency direction:** a layer depends only on other layers' `Contracts.kt`. `focus` defines `FocusEffects`, which `system` implements. `android.nfc.*` may be imported only in `nfc/AndroidNfcGateway*` and `nfc/NfcTriggerActivity` (checked by T8).
+5. **Bindings:** each layer binds its contracts in `<layer>/di/<Layer>Module.kt` (`@InstallIn(SingletonComponent)`). The NFC hardware binding lives in its **own** module, `nfc/di/NfcGatewayModule.kt`, so tests can replace just the gateway.
+
+##### R3. Contracts (frozen after T1; KDoc on every member in the real files)
+
+```kotlin
+// focus/Contracts.kt
+enum class TagRole { ACTIVATE /* Tag A, desk */, DEACTIVATE /* Tag B, living room */ }
+enum class FocusMode { FREE, FOCUS }
+
+sealed interface FocusState {
+    val mode: FocusMode
+    data object Free : FocusState { override val mode = FocusMode.FREE }
+    data class Focus(val since: Instant) : FocusState { override val mode = FocusMode.FOCUS }
+}
+
+/** currentSession is ZERO while FREE; todayTotal includes the live session (D-42). */
+data class FocusStats(val currentSession: Duration, val todayTotal: Duration) // kotlin.time.Duration
+
+enum class ScanOutcome { ACTIVATED, DEACTIVATED, NO_CHANGE }
+
+/** Mode-changing entry point. Only nfc calls it (and the test harness). */
+interface FocusController {
+    /** Serialised; persists, then reconciles effects. Never throws for permission problems. */
+    suspend fun onTagScanned(role: TagRole): ScanOutcome
+}
+
+/** Read-only view for blocker and UI. Cold flows backed by the store; distinctUntilChanged. */
+interface FocusStateReader {
+    val state: Flow<FocusState>
+    /** Ticks every second while FOCUS. */
+    val stats: Flow<FocusStats>
+    /** Result of the last reconcile (D-35). */
+    val effectsStatus: StateFlow<EffectsStatus>
+}
+
+enum class Effect { ZEN_RULE, GRAYSCALE_FALLBACK }
+data class EffectsStatus(val failed: Set<Effect> = emptySet()) { val isDegraded get() = failed.isNotEmpty() }
+
+/** System side effects of FOCUS. Implemented by system. Idempotent; enable() re-asserts an externally disabled rule (D-34). */
+interface FocusEffects {
+    suspend fun enable(): EffectsStatus
+    suspend fun disable(): EffectsStatus
+}
+
+/** Contributed via @IntoSet; run once per process from FocusTagApp.onCreate on the app scope (D-43). */
+fun interface AppStartHook { suspend fun onAppStart() }
+```
+
+```kotlin
+// nfc/Contracts.kt
+/** Hardware-free view of a scanned tag (D-15). uidHex is upper-case hex, no separators. */
+data class ScannedTag(val uidHex: String, val ndefUris: List<String>)
+
+/** A tag currently in the field (reader mode), opaque outside nfc. */
+interface NfcTagHandle { val scanned: ScannedTag }
+
+enum class NfcAvailability { UNAVAILABLE, DISABLED, ENABLED }
+enum class WriteFailure { READ_ONLY, TOO_SMALL, NOT_NDEF, IO_ERROR, VERIFY_FAILED }
+sealed interface WriteResult {
+    data object Written : WriteResult
+    data class Failed(val reason: WriteFailure) : WriteResult
+}
+
+/** The only door to android.nfc. Faked in every Hilt test (FakeNfcGateway). */
+interface NfcGateway {
+    val availability: Flow<NfcAvailability>
+    /** Parses an NDEF_DISCOVERED intent; null if it carries no tag. */
+    fun readTag(intent: Intent): ScannedTag?
+    fun enableReaderMode(activity: Activity, onTag: (NfcTagHandle) -> Unit)
+    fun disableReaderMode(activity: Activity)
+    /** Writes URI record + AAR, then reads back and verifies (D-10). */
+    suspend fun writeFocusTag(tag: NfcTagHandle, uri: String): WriteResult
+}
+
+data class TagPairing(val role: TagRole, val tagId: String, val uidHex: String)
+fun Map<TagRole, TagPairing>.isComplete(): Boolean = TagRole.entries.all { it in this }
+
+sealed interface PairingResult {
+    data class Paired(val pairing: TagPairing) : PairingResult
+    data object UidUsedByOtherRole : PairingResult
+    data class WriteFailed(val reason: WriteFailure) : PairingResult
+}
+
+interface PairingRepository {
+    val pairings: Flow<Map<TagRole, TagPairing>>
+    /** Rejects a UID already paired to the other role. */
+    suspend fun save(pairing: TagPairing): PairingResult
+    suspend fun reset(role: TagRole)
+    suspend fun resetAll()
+}
+
+/** Pairing use case: new UUID → write → verify → save; old pairing untouched on failure. */
+interface TagWriter { suspend fun pair(tag: NfcTagHandle, role: TagRole): PairingResult }
+
+sealed interface TagScanResult {
+    data class Valid(val role: TagRole) : TagScanResult
+    data object Unknown : TagScanResult
+    data object UidMismatch : TagScanResult
+    data object Malformed : TagScanResult
+}
+```
+
+```kotlin
+// system/Contracts.kt
+enum class PermissionId {
+    NFC_ENABLED, ACCESSIBILITY_SERVICE, NOTIFICATION_POLICY_ACCESS, POST_NOTIFICATIONS,
+    BATTERY_OPTIMIZATION_EXEMPTION, GRAYSCALE_CAPABILITY, WRITE_SECURE_SETTINGS,
+}
+enum class PermissionStatus { GRANTED, MISSING, UNSUPPORTED }
+
+sealed interface PermissionAction {
+    /** First intent is primary; accessibility adds App info for "Allow restricted settings" (D-25). */
+    data class OpenSettings(val intents: List<Intent>) : PermissionAction
+    data class RequestRuntime(val permission: String, val settingsIntent: Intent) : PermissionAction
+    data class AdbGrant(val command: String) : PermissionAction
+}
+
+data class PermissionItem(
+    val id: PermissionId,
+    val status: PermissionStatus,
+    val required: Boolean,
+    val action: PermissionAction,
+)
+val List<PermissionItem>.missingRequired get() = filter { it.required && it.status == PermissionStatus.MISSING }
+
+interface PermissionChecker {
+    val items: StateFlow<List<PermissionItem>>
+    /** Re-evaluates now (called on ON_RESUME). */
+    fun refresh()
+}
+
+interface GrayscaleFallbackSettings {
+    val enabled: Flow<Boolean>
+    suspend fun setEnabled(enabled: Boolean)
+}
+```
+
+```kotlin
+// blocker/Contracts.kt
+const val EXTRA_BLOCKED_PACKAGE = "io.github.fbarcalar.focustag.extra.BLOCKED_PACKAGE"
+
+sealed interface RemoveResult {
+    data object Removed : RemoveResult
+    data object NotAllowedDuringFocus : RemoveResult
+}
+
+interface BlockListRepository {
+    val blockedPackages: Flow<Set<String>>
+    suspend fun add(packageName: String)
+    /** Refused while FOCUS (D-45). */
+    suspend fun remove(packageName: String): RemoveResult
+}
+
+data class InstalledApp(val packageName: String, val label: String)
+
+interface InstalledAppsSource {
+    /** Launchable apps except ours, sorted by label, IO dispatcher. */
+    suspend fun launchableApps(): List<InstalledApp>
+    /** Null when the package has no loadable icon. */
+    suspend fun icon(packageName: String): Bitmap?
+}
+```
+
+**UI entry points (frozen signatures, bodies owned by T6/T7):** `ui/status/StatusDestination.kt` → `@Composable fun StatusDestination(onOpenSetup: () -> Unit)`. `ui/setup/SetupDestination.kt` → `@Composable fun SetupDestination(onBack: (() -> Unit)?, onPairingComplete: () -> Unit)`, where `onBack` is null when Setup is the start destination. T1 ships placeholder bodies marked `// PLACEHOLDER(T6|T7)`, which T8 greps for.
+
+##### R4. Placeholders, modules, stubs (T1 writes them; each layer task deletes or replaces its own)
+
+| Layer | Module | Placeholder bindings | Manifest stubs |
+|-------|--------|----------------------|----------------|
+| focus | `focus/di/FocusModule.kt` | `PlaceholderFocusEngine` (in-memory `MutableStateFlow`, D-40 transitions, calls `FocusEffects`; stats are zeros) bound to both `FocusController` and `FocusStateReader` (same `@Singleton`) | `focus/boot/BootReceiver` (`@AndroidEntryPoint`, no-op) |
+| nfc | `nfc/di/NfcModule.kt`, `nfc/di/NfcGatewayModule.kt` | `PlaceholderNfcGateway` (UNAVAILABLE, `readTag` returns null, writes fail with IO_ERROR), `PlaceholderPairingRepository` (in-memory), `PlaceholderTagWriter` (WriteFailed IO_ERROR) | `nfc/NfcTriggerActivity` (finishes immediately) |
+| system | `system/di/SystemModule.kt` | `PlaceholderFocusEffects` (no-op, healthy), `PlaceholderPermissionChecker` (empty list), `PlaceholderGrayscaleFallbackSettings` (in-memory false) | — |
+| blocker | `blocker/di/BlockerModule.kt` | `PlaceholderBlockListRepository` (in-memory), `PlaceholderInstalledAppsSource` (empty) | `blocker/FocusAccessibilityService` (empty overrides), `blocker/BlockingActivity` (finishes) |
+| app | `di/AppModule.kt` (`@Multibinds Set<AppStartHook>`, `AppStartRunner`), `di/TimeModule.kt` (`Clock` = `DeviceClock`), `di/CoroutinesModule.kt` | — | `MainActivity` |
+
+`AppStartRunner(hooks, @ApplicationScope scope).run()` launches each hook in its own coroutine. `FocusTagApp.onCreate` and the harness both call it.
+
+**Navigation:** `ui/nav/FocusTagNavHost.kt` with `@Serializable data object StatusRoute` / `SetupRoute`. `ui/nav/StartViewModel` maps `PairingRepository.pairings` to `sealed StartDestination { Loading, Setup, Status }`. While Loading it shows an empty `Surface` (no flash of the wrong screen). `onPairingComplete` navigates to Status with `popUpTo<SetupRoute> { inclusive = true }`. Status has a top-bar Settings icon → Setup. Setup has a back arrow when it isn't the start destination. `ui/common/PermissionBanner(missing: List<PermissionItem>, onClick)` is a stateless shell.
+
+**Manifest:** permissions as in subtask 7; `uses-feature android.hardware.nfc required=true`; `<queries>` for `MAIN/LAUNCHER` **and** `MAIN/HOME` (the default-launcher lookup in D-22). `MainActivity` (exported, launcher, `singleTop`). `NfcTriggerActivity`: exported, `Theme.FocusTag.Translucent`, `excludeFromRecents`, `noHistory`, `taskAffinity=""`, `NDEF_DISCOVERED` + `DEFAULT` + `<data scheme="focustag" host="toggle"/>`. `BlockingActivity`: not exported, `taskAffinity="${applicationId}.blocking"`, `excludeFromRecents`, `launchMode=singleTask`. `FocusAccessibilityService`: exported, `BIND_ACCESSIBILITY_SERVICE`, meta-data → `res/xml/accessibility_service_config.xml` (`typeWindowStateChanged|typeWindowsChanged`, `feedbackGeneric`, `canRetrieveWindowContent=true`, `notificationTimeout=0`, `description=@string/accessibility_service_description`). `BootReceiver`: exported, `BOOT_COMPLETED` + `MY_PACKAGE_REPLACED`. The NFC tech-list XML is **dropped** (YAGNI: we only use `NDEF_DISCOVERED`).
+
+##### R5. Test fakes (`app/src/test/.../testing/`)
+
+`FakeClock` (2026-10-06T10:00Z, Europe/Madrid; `advanceBy(Duration)`, `zone` setter). `FakeNfcGateway` (`availability` `MutableStateFlow`, `enqueueRead(ScannedTag?)`, `present(FakeTagHandle)` fires the reader-mode callback, `writeResults` queue, recorded writes, `readerModeEnabled` flag for balance checks). `FakeFocusEffects` (records an `enable`/`disable` call list, configurable `EffectsStatus`). `FakePermissionChecker` (`MutableStateFlow` items, refresh count). `FakeFocusEngine` (in-memory `FocusController` + `FocusStateReader` for the T5–T7 VM tests). `TestDataStores.preferences(dir, scope)`. `MainDispatcherRule`.
+
+Hilt test overrides (`@TestInstallIn`, which apply to **every** `@HiltAndroidTest`): `TestTimeModule` replaces `TimeModule` (`@Singleton FakeClock`, also bound as `Clock`), and `TestNfcGatewayModule` replaces `NfcGatewayModule` (`@Singleton FakeNfcGateway`, also bound as `NfcGateway`). The real `AndroidNfcGateway` is tested by T3 without Hilt. `robolectric.properties`: `sdk=37`, `application=dagger.hilt.android.testing.HiltTestApplication`.
+
+##### R6. E2E harness (`e2e/FocusTagE2E.kt`, plus `e2e/HiltProcess.kt` ≲ 40 lines)
+
+`@HiltAndroidTest abstract class FocusTagE2E` with rules `HiltAndroidRule` (order 0) and `createEmptyComposeRule()` (order 1). Scenario classes extend it and are annotated `@HiltAndroidTest @RunWith(AndroidJUnit4::class)`. The harness never caches injected objects. It reads them through `EntryPoints.get(app, HarnessEntryPoint::class.java)`, which exposes `FocusController`, `FocusStateReader`, `PairingRepository`, `BlockListRepository`, `PermissionChecker`, `FakeNfcGateway`, `FakeClock`, `AppStartRunner` and `@ApplicationScope CoroutineScope`, so every call after a restart reaches the new graph.
+
+| DSL | Implementation |
+|-----|----------------|
+| `startApp()` | `AppStartRunner.run()` (what `FocusTagApp.onCreate` does), then `idle()` |
+| `openMainUi()` | `ActivityScenario.launch(MainActivity)`; the compose rule finds it |
+| `pairTags()` | `PairingRepository.save` for both roles with fixed `TAG_A`/`TAG_B` (uid, uuid) |
+| `scanTag(role)` / `scanTagWithWrongUid(role)` / `scanUnknownTag()` / `scanForeignUri()` | `FakeNfcGateway.enqueueRead(ScannedTag(...))`, then launch `NfcTriggerActivity` with an `ACTION_NDEF_DISCOVERED` intent (data `focustag://toggle/<id>`), then `idle()` |
+| `scanTagDirect(role)` | `FocusController.onTagScanned(role)`, for slices that run before T3 lands |
+| `openApp(pkg)` | keeps a `ServiceController<FocusAccessibilityService>` and calls `onAccessibilityEvent(TYPE_WINDOW_STATE_CHANGED, pkg)` |
+| `turnZenRuleOffExternally()` | `NotificationManager.setAutomaticZenRuleState(id, FALSE)` on our rule, then broadcast `ACTION_AUTOMATIC_ZEN_RULE_STATUS_CHANGED` |
+| `revoke(grant)` / `grant(grant)` | `SystemGrant { NOTIFICATION_POLICY, POST_NOTIFICATIONS, ACCESSIBILITY_SERVICE, NFC, WRITE_SECURE_SETTINGS }` mapped onto the Robolectric shadows (`ShadowNotificationManager.setNotificationPolicyAccessGranted`, `ShadowApplication.grant/denyPermissions`, `Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES`, `FakeNfcGateway.availability`); then `PermissionChecker.refresh()` |
+| `advanceClock(d)` | `FakeClock.advanceBy(d)` |
+| `killProcess()` | see below |
+| `reboot()` | `killProcess()`, then reset volatile OS state (our zen rules set to `STATE_FALSE`, all notifications cancelled), then `sendBroadcast(BOOT_COMPLETED, package=ours)` + `idle()` |
+| `assertMode(m)` | `eventually { FocusStateReader.state.first().mode == m }` |
+| `assertZenRuleActive(b)` | `NotificationManager.getAutomaticZenRules()` filtered to our package, `getAutomaticZenRuleState(id) == STATE_TRUE` (Robolectric 4.17 shadows both) |
+| `assertBlockingShown(pkg)` / `assertNothingBlocked()` | `shadowOf(app).nextStartedActivity` → `BlockingActivity` with `EXTRA_BLOCKED_PACKAGE` |
+| `assertEffectsDegraded(b)` | `FocusStateReader.effectsStatus.value.isDegraded` |
+| `eventually(timeout = 5s) { }` / `idle()` | loops `shadowOf(mainLooper).idle()` + a short sleep until the assertion holds. DataStore uses real `Dispatchers.IO` (no virtual time in E2E). |
+
+**`killProcess()` (simulated process death):** (1) destroy the activity scenarios and service controllers the harness holds; (2) `cancelAndJoin` the old `@ApplicationScope` job, which releases the DataStore file locks and unregisters receivers (R2.2); (3) **rebuild the Hilt SingletonComponent** through `HiltProcess.restart(app)`: reflectively set `TestApplicationComponentManager.component` to null and invoke its private `tryToCreateComponent()`. These are the only two reflective touches, isolated in one file and checked against Hilt 2.60.1 bytecode. The new graph uses the same `@TestInstallIn` modules and the same Robolectric `filesDir`, so the DataStore files persist. (4) Carry "outside world" state into the new fakes: the clock instant/zone and NFC availability. `NotificationManager` and `Settings` state survive by design, as on a real device. **Self-test (T1):** `scanTagDirect(ACTIVATE)` → FOCUS; `killProcess()` → `FocusStateReader` is a different instance and (with the in-memory placeholder) the mode is FREE again. That proves a fresh graph. T2 rewrites the self-test expectation to FOCUS when its store lands. **Fallback** if the reflection breaks on a Hilt upgrade: E2E-7/8 seed the DataStore before the first injection (`@Before`, using T2's store with a standalone scope), then start a single process.
+
+Assumption for E2E-6 (handed to T5): the service remembers the last foreground package from its window events and re-checks it on the FREE→FOCUS edge, with `rootInActiveWindow` only as a fallback. That keeps the scenario drivable via `openApp(pkg)` before `scanTag(ACTIVATE)`.
+
+##### R7. Files T1 creates
+
+`settings.gradle.kts`, `build.gradle.kts`, `gradle.properties`, `gradle/libs.versions.toml`, `gradle/wrapper/*`, `gradlew`, `gradlew.bat`, `.gitignore`, `.github/workflows/ci.yml`, `scripts/setup-android-sdk.sh`; `app/build.gradle.kts`, `app/proguard-rules.pro`, `app/lint.xml`; `app/src/main/AndroidManifest.xml`, `res/xml/accessibility_service_config.xml`, `res/values/{strings,themes,colors}.xml`, `res/drawable/ic_launcher_{foreground,background}.xml`, `res/mipmap-anydpi/ic_launcher{,_round}.xml`; main sources `FocusTagApp`, `MainActivity`, `di/{AppModule,TimeModule,CoroutinesModule,Qualifiers,DeviceClock,AppStartRunner}`, `ui/theme/{Color,Theme,Type}`, `ui/nav/{FocusTagNavHost,Routes,StartViewModel}`, `ui/common/PermissionBanner`, `ui/status/StatusDestination` (placeholder), `ui/setup/SetupDestination` (placeholder), the 4 `Contracts.kt`, the per-layer modules and placeholders and stubs from R4; tests `testing/*` (R5), `testing/di/{TestTimeModule,TestNfcGatewayModule}`, `e2e/{FocusTagE2E,HarnessEntryPoint,HiltProcess,SystemGrant}`, `e2e/HarnessSelfTest`, `SmokeTest` (JVM), `ui/nav/NavigationTest` (Robolectric Compose: Setup start, Status ↔ Setup once paired via the placeholder repo), `HiltGraphTest` (`@HiltAndroidTest` launching `MainActivity`). DECISIONS: D-07 (Android 17 changes), and a correction to D-01/D-06 (`android-37.0`, Kotlin 2.3.21).
+
+##### R8. Risks / open questions
+
+* **Hilt component rebuild via reflection** (R6) is the only non-public API use. It's gated by the harness self-test, and the fallback is described above.
+* **Maven Central rate limiting (HTTP 429 seen through the proxy)** when Robolectric downloads android-all (~170 MB) on a cold cache. Mitigation: retry, keep the `~/.m2` cache, CI caching. If it persists, pin `robolectric.dependency.repo.url`.
+* **Kotlin 2.3.21 instead of 2.4.20.** This is a deliberate compatibility choice (R1). Revisit when KSP/Dagger ship 2.4-based releases.
+* **`compileSdk` DSL for minor SDK levels** (`android-37.0`): verified only by the first build. Fallback in R1.
+* **Robolectric SDK 37** is new (android-all built July 2026). Compose or `MessageQueue` issues → `sdk=36` fallback in `robolectric.properties` (target stays 37).
+* `PermissionItem` holds `Intent`s, which have no structural `equals`. Tests compare `action`/`component`, not the item.
+* Global `@TestInstallIn` means every Hilt test sees `FakeNfcGateway`/`FakeClock`. That's intended (hardware edges); a layer test that needs something else uses `@BindValue`.
 
 ---
 
