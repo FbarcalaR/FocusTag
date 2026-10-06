@@ -14,7 +14,7 @@ import dagger.hilt.components.SingletonComponent
 import io.github.fbarcalar.focustag.di.ApplicationScope
 import io.github.fbarcalar.focustag.di.IoDispatcher
 import io.github.fbarcalar.focustag.nfc.PairingRepository
-import io.github.fbarcalar.focustag.nfc.PlaceholderTagWriter
+import io.github.fbarcalar.focustag.nfc.NfcTagWriter
 import io.github.fbarcalar.focustag.nfc.TagPairingStore
 import io.github.fbarcalar.focustag.nfc.TagWriter
 import javax.inject.Singleton
@@ -28,7 +28,7 @@ abstract class NfcModule {
     abstract fun pairingRepository(store: TagPairingStore): PairingRepository
 
     @Binds
-    abstract fun tagWriter(writer: PlaceholderTagWriter): TagWriter
+    abstract fun tagWriter(writer: NfcTagWriter): TagWriter
 
     companion object {
         private const val PAIRINGS_FILE = "tag_pairings"
