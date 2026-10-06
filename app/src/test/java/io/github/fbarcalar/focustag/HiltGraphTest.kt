@@ -1,6 +1,8 @@
 package io.github.fbarcalar.focustag
 
+import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onAllNodesWithText
@@ -19,12 +21,15 @@ import io.github.fbarcalar.focustag.nfc.PairingRepository
 import io.github.fbarcalar.focustag.nfc.TagWriter
 import io.github.fbarcalar.focustag.system.GrayscaleFallbackSettings
 import io.github.fbarcalar.focustag.system.PermissionChecker
+import io.github.fbarcalar.focustag.testing.cancelApplicationScope
 import javax.inject.Inject
+import org.junit.After
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 
+@OptIn(ExperimentalTestApi::class)
 @HiltAndroidTest
 @RunWith(AndroidJUnit4::class)
 class HiltGraphTest {
@@ -54,8 +59,14 @@ class HiltGraphTest {
         assertThat(focusController).isSameInstanceAs(focusStateReader)
     }
 
+    @After
+    fun endProcess() = cancelApplicationScope(composeRule.activity)
+
     @Test
     fun `the app launches to the setup screen when no tags are paired`() {
-        composeRule.onAllNodesWithText(composeRule.activity.getString(R.string.title_setup)).onFirst().assertIsDisplayed()
+        val setupTitle = composeRule.activity.getString(R.string.title_setup)
+        composeRule.waitUntilAtLeastOneExists(hasText(setupTitle), timeoutMillis = 5_000)
+
+        composeRule.onAllNodesWithText(setupTitle).onFirst().assertIsDisplayed()
     }
 }
