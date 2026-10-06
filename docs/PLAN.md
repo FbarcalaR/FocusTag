@@ -407,9 +407,9 @@ Assumption for E2E-6 (handed to T5): the service remembers the last foreground p
 
 ---
 
-### T2 — Focus core: state machine, store, engine, boot · status: `todo`
+### T2 — Focus core: state machine, store, engine, boot · status: `in-progress`
 **Goal:** Correct, idempotent FREE/FOCUS logic that persists across kills and reboots and drives the effects.
-**Owns:** `focus/**` except `Contracts.kt` (incl. `focus/di/FocusModule.kt`, `focus/boot/BootReceiver.kt`, `focus/notification/FocusNotifier.kt`), `res/values/strings_focus.xml`, `test/.../focus/**`.
+**Owns:** `focus/**` except `Contracts.kt` (incl. `focus/di/FocusModule.kt`, `focus/boot/BootReceiver.kt`, `focus/notification/FocusNotifier.kt`), `res/values/strings_focus.xml`, `res/drawable/ic_focus_notification.xml`, `test/.../focus/**`.
 **Depends on:** T1. **Decisions:** D-34, D-40–D-45.
 **Subtasks:**
 1. `FocusStateMachine.transition(state, role)` (pure, exhaustive `when`).
@@ -423,6 +423,106 @@ Assumption for E2E-6 (handed to T5): the service remembers the last foreground p
 
 **Acceptance criteria:** all 4 (state × tag) combinations behave as specified; repeated scans don't change state or timestamps; state survives store re-creation (process death); reboot reconcile re-enables effects; today's total is correct across midnight; revoked permission → no crash, degraded flag set.
 **Test strategy:** pure JUnit for the state machine and stats (FakeClock, midnight cases); Robolectric for the store (real DataStore in a temp dir), engine with `FakeFocusEffects` (verify call sequences, concurrency with 50 parallel scans), BootReceiver intent → reconcile, notifier. Slice E2E: boot broadcast and app start drive reconcile through the real graph.
+
+#### Refinement notes (T2)
+
+##### F1. Classes (package `io.github.fbarcalar.focustag.focus`, all `internal` unless a test/harness needs them)
+
+| File | Type | Responsibility / signature |
+|------|------|----------------------------|
+| `FocusStateMachine.kt` | `object FocusStateMachine` + `data class Transition(val newState: FocusState, val outcome: ScanOutcome) { val changed get() = outcome != NO_CHANGE }` | Pure D-40: `fun transition(state: FocusState, role: TagRole, now: Instant): Transition`. Exhaustive `when` over `(state, role)`; `now` is used only for FREE+A. FOCUS+A keeps the original `since`. |
+| `FocusReconciler.kt` | `fun interface FocusReconciler { suspend fun reconcile() }` | Narrow port used by the boot receiver, the start hook and re-assertion (ISP), so none of them sees the controller. |
+| `FocusEngine.kt` | `@Singleton class FocusEngine @Inject constructor(store: FocusStateStore, effects: FocusEffects, notifier: FocusNotifier, statsSource: FocusStatsSource, clock: Clock) : FocusController, FocusStateReader, FocusReconciler` | `onTagScanned` and `reconcile` share one `Mutex`. Scan = read `store.current()` → `transition` → if changed, persist (`enterFocus(since)` / `enterFree(endedAt = now, zone = clock.zone)`) → `reconcileLocked()` → return outcome. **Every scan reconciles, even NO_CHANGE** (idempotent, and it self-heals effects, MC-09). `state = store.state`, `stats = statsSource.stats`, `effectsStatus` = private `MutableStateFlow(EffectsStatus())`. |
+| (same file, private) | `reconcileLocked()` | `when (store.current())`: `Focus` → `effects.enable()` + `notifier.show(since)`; `Free` → `effects.disable()` + `notifier.cancel()`. The effects call is wrapped in `catch (SecurityException)` → `EffectsStatus(setOf(Effect.ZEN_RULE))` (defence in depth; T4 already maps it at its adapter). The returned status is stored in `effectsStatus`. |
+| `store/FocusStateStore.kt` | `class FocusStateStore(private val dataStore: DataStore<Preferences>)` (public ctor: E2E-7/8 seed through it, R6) | `val snapshot: Flow<FocusSnapshot>`, `val state: Flow<FocusState>` (`map` + `distinctUntilChanged`), `suspend fun current(): FocusState`, `suspend fun enterFocus(since: Instant)`, `suspend fun enterFree(endedAt: Instant, zone: ZoneId)`. `enterFree` does the read-modify-write inside one `edit {}`: adds the session split by day (F3) to the stored totals, prunes, and clears the session. Only persistence mapping lives here. |
+| `store/FocusSnapshot.kt` | `data class FocusSnapshot(val state: FocusState, val dailyTotals: Map<LocalDate, Duration>)` | What the stats need from one consistent read. |
+| `store/FocusPreferences.kt` | `internal object FocusPreferences` | Keys + `fun decode(prefs): FocusSnapshot` / `fun MutablePreferences.writeFocus(since)`, `writeFree(totals)`. |
+| `store/FocusDataStore.kt` | `fun createFocusDataStore(scope: CoroutineScope, produceFile: () -> File): DataStore<Preferences>` | `PreferenceDataStoreFactory.create(corruptionHandler = ReplaceFileCorruptionHandler { emptyPreferences() }, scope, produceFile)`. Used by the module and by the corruption test, so the tested handler is the shipped one. |
+| `stats/DailyTotals.kt` | pure top-level functions | `fun splitByDay(start: Instant, end: Instant, zone: ZoneId): Map<LocalDate, Duration>` (empty if `end <= start`); `fun Map<LocalDate, Duration>.plusSession(start, end, zone)`; `fun Map<LocalDate, Duration>.retainFrom(firstDay: LocalDate)`. Day boundaries via `LocalDate.atStartOfDay(zone)` (DST-safe). |
+| `stats/FocusStatsCalculator.kt` | `fun focusStats(snapshot: FocusSnapshot, now: Instant, zone: ZoneId): FocusStats` | Pure. `currentSession = (now - since).coerceAtLeast(ZERO)` in FOCUS, ZERO in FREE; `todayTotal = stored[today] + splitByDay(since, now, zone)[today]`. |
+| `stats/FocusStatsSource.kt` | `class FocusStatsSource @Inject constructor(store: FocusStateStore, clock: Clock) { val stats: Flow<FocusStats> }` | Ticking (F3). |
+| `notification/FocusNotifier.kt` | `interface FocusNotifier { fun show(since: Instant); fun cancel() }` + `class AndroidFocusNotifier @Inject constructor(@ApplicationContext context: Context) : FocusNotifier` | D-44 (F5). The interface lets the engine be tested on the plain JVM. |
+| `reassert/ZenChangeSignals.kt` | `fun interface ZenChangeSignals { fun changes(): Flow<Unit> }` + `class BroadcastZenChangeSignals @Inject constructor(@ApplicationContext context)` | Thin adapter: `callbackFlow` registering one receiver (F4), `awaitClose { unregisterReceiver }`. |
+| `reassert/ZenReassertion.kt` | `class ZenReassertion @Inject constructor(store: FocusStateStore, signals: ZenChangeSignals, reconciler: FocusReconciler) : AppStartHook` | `onAppStart()` = `store.state.map { it is FocusState.Focus }.distinctUntilChanged().flatMapLatest { focus -> if (focus) signals.changes() else emptyFlow() }.conflate().collect { reconciler.reconcile() }`. Long-running; the app scope cancels it. |
+| `ReconcileOnAppStart.kt` | `class ReconcileOnAppStart @Inject constructor(reconciler: FocusReconciler) : AppStartHook` | `onAppStart() = reconciler.reconcile()` (D-43, process death). |
+| `boot/BootReceiver.kt` | `@AndroidEntryPoint class BootReceiver` | F6. |
+| `di/FocusModule.kt` | `@Module @InstallIn(SingletonComponent)` interface + companion | `@Binds` `FocusEngine` → `FocusController`, `FocusStateReader`, `FocusReconciler`; `AndroidFocusNotifier` → `FocusNotifier`; `BroadcastZenChangeSignals` → `ZenChangeSignals`; `@Binds @IntoSet` `ReconcileOnAppStart` and `ZenReassertion` → `AppStartHook`. `@Provides @Singleton fun focusStateStore(@ApplicationContext ctx, @ApplicationScope scope, @IoDispatcher io) = FocusStateStore(createFocusDataStore(CoroutineScope(scope.coroutineContext + io)) { ctx.preferencesDataStoreFile("focus_state") })`. **No `DataStore<Preferences>` is put in the graph**, so it can't collide with other layers' stores. |
+
+Resources: `res/values/strings_focus.xml` (channel name/description, notification title "Focus active", text "Scan the living-room tag to exit") and **one new file, `res/drawable/ic_focus_notification.xml`** (monochrome vector small icon; lint flags a launcher icon used as a status-bar icon). The drawable is new, so it overlaps no one; it is added to T2's "Owns".
+
+##### F2. DataStore schema (file `focus_state`, Preferences)
+
+| Key | Type | Meaning |
+|-----|------|---------|
+| `mode` | String (`FocusMode.name`) | `FOCUS` / `FREE` |
+| `session_start_epoch_ms` | Long | present only while FOCUS |
+| `day_ms_<yyyy-MM-dd>` | Long | completed focus ms for that local date (one dynamic key per day) |
+
+* Decoding: `mode == FOCUS` **and** a start present → `Focus(since)`; anything else (missing file, unknown mode, FOCUS without a start) → `Free`. Same "fail to FREE" policy as the corruption handler (subtask 2). The state is written as both keys in one `edit {}`, so the inconsistent case is unreachable in practice.
+* Retention: on `enterFree`, keep the 30 local dates `today-29 … today` and remove other `day_ms_*` keys. Unparseable `day_ms_*` keys are ignored on read and dropped on the next prune.
+
+##### F3. Stats and ticking (D-42)
+
+* Midnight split happens **at session end** (`enterFree` adds `splitByDay(since, endedAt, zone)`) and **while live** (`focusStats` adds only today's slice of the live session). "Today" = `LocalDate.ofInstant(now, clock.zone)`; `DeviceClock` follows timezone changes.
+* `FocusStatsSource.stats = store.snapshot.flatMapLatest { snap -> ticks(snap).map { focusStats(snap, clock.instant(), clock.zone) } }.distinctUntilChanged()`:
+  * FOCUS: `ticks` emits immediately and then every 1 s (`delay(1.seconds)`).
+  * FREE: emits immediately, then again at each next local midnight (`delay(until next midnight)`), so a FREE screen left open overnight drops yesterday's total. No per-second work while FREE.
+* Cold flow; it ticks only while collected (Status screen). Coroutine `delay` (virtual in `runTest`) drives the cadence; the value always comes from the injected `Clock`.
+
+##### F4. Concurrency and re-assertion
+
+* One `Mutex` in `FocusEngine` serialises scans and reconciles, so persistence and effects can't interleave (50 parallel scans → exactly one transition). DataStore's `edit` is atomic, and `enterFree` does its read-modify-write inside it. Readers (`state`, `stats`) never take the mutex.
+* Every long-lived collector runs in `AppStartHook`s on `@ApplicationScope` (R2.2). No `GlobalScope`, no `runBlocking`.
+* **Zen re-assertion (D-34/D-35):** `BroadcastZenChangeSignals` registers one receiver (`ContextCompat.registerReceiver(..., RECEIVER_NOT_EXPORTED)`; system broadcasts still reach it) for `NotificationManager.ACTION_AUTOMATIC_ZEN_RULE_STATUS_CHANGED`, `ACTION_INTERRUPTION_FILTER_CHANGED` and `ACTION_NOTIFICATION_POLICY_ACCESS_GRANTED_CHANGED` (the last one lets a re-grant recreate the rule, D-35/MC-10). It is registered **only while FOCUS** (`flatMapLatest`) and is unregistered on FREE or on scope cancel. Each signal → `reconcile()` → `FocusEffects.enable()`, which owns the "is it active? else FALSE→TRUE / recreate" logic (T4). `conflate()` collapses bursts into at most one pending reconcile.
+* In practice the bound accessibility service keeps the process (and so the receiver) alive. Gaps after a process kill are covered by the next app start, boot or scan.
+
+##### F5. Notifier (D-44, D-07)
+
+* Channel `focus_active`, `IMPORTANCE_LOW`, created idempotently on each `show`. Notification: `setOngoing(true)`, `setOnlyAlertOnce(true)`, `setSilent(true)`, `CATEGORY_STATUS`, `setWhen(since)` + `setUsesChronometer(true)` (a live session timer at no cost), no actions. The content intent is `PendingIntent.getActivity(packageManager.getLaunchIntentForPackage(packageName), FLAG_IMMUTABLE or FLAG_UPDATE_CURRENT)`, so `focus` doesn't import `MainActivity` and never opts into background activity starts (D-07).
+* `show` is a no-op when `POST_NOTIFICATIONS` isn't granted or `areNotificationsEnabled()` is false (explicit `checkSelfPermission`, which also satisfies lint `MissingPermission`). A `SecurityException` is caught at this adapter. `cancel` always runs. A fixed notification id.
+
+##### F6. Boot receiver (D-43)
+
+`onReceive`: return unless `intent.action` is `BOOT_COMPLETED` or `MY_PACKAGE_REPLACED` (this fixes lint `UnsafeProtectedBroadcastReceiver`). Otherwise `val pending = goAsync()`, then `appScope.launch { try { reconciler.reconcile() } finally { pending.finish() } }`, with an injected `FocusReconciler` and `@ApplicationScope CoroutineScope`. The reconcile that `FocusTagApp.onCreate` runs at boot as well is harmless (mutex + idempotent).
+
+##### F7. Placeholder replacement
+
+Delete `focus/PlaceholderFocusEngine.kt`; rewrite `focus/di/FocusModule.kt` (F1) and the body of `focus/boot/BootReceiver.kt`. `HiltGraphTest`'s "controller and reader are the same instance" still holds (one `@Singleton FocusEngine`). `testing/FakeFocusEngine` (T1) stays for the T5–T7 VM tests. No change to `Contracts.kt`, the manifest or T1 files.
+
+##### F8. Tests (`app/src/test/.../focus/**`)
+
+Plain JUnit (JVM; DataStore Preferences is pure JVM, so the store and the engine need no Robolectric; it runs on `TemporaryFolder` + `TestDataStores`):
+* `FocusStateMachineTest`: the 4 (state × role) cases with outcomes; FOCUS+A keeps `since`; FREE+B stays `Free`.
+* `DailyTotalsTest`: same-day session; a session across midnight split in two; a multi-day session; the DST day (Europe/Madrid 2026-10-25 has 25 h); `end <= start` → empty; `plusSession` adds to existing days; `retainFrom` keeps exactly 30 days.
+* `FocusStatsCalculatorTest`: FREE → current ZERO and today = stored; FOCUS same day; a live session started yesterday counts only today's slice; stored + live sum; a clock behind `since` → ZERO; a timezone move changes "today".
+* `FocusStatsSourceTest` (`runTest` + Turbine + `FakeClock`): FOCUS emits each second as the clock advances; FREE emits once and again after midnight; FREE→FOCUS switches cadence.
+* `FocusStateStoreTest`: empty → `Free`; `enterFocus` persists; **state survives store re-creation** (cancel the scope, reopen the file); `enterFree` adds split totals and prunes; a garbage file through `createFocusDataStore` → `Free`, no throw; unknown `mode` / FOCUS without a start → `Free`.
+* `FocusEngineTest` (`FakeFocusEffects`, local `FakeFocusNotifier`, `FakeClock`, real store): each of the 4 cases (outcome, persisted state, effects call list, notifier calls); a double A scan keeps `since` and only re-enables; B after 25 min → today's total 25 min; across midnight → split; `reconcile()` twice → two identical idempotent calls; degraded status from effects → `effectsStatus.isDegraded`; effects throwing `SecurityException` → no throw, `failed = {ZEN_RULE}`; **50 parallel scans** (`Dispatchers.Default`, all A, then a mix) → exactly one `ACTIVATED`, one persisted `since`.
+* `ZenReassertionTest` (`MutableSharedFlow` signals, fake reconciler): a signal while FOCUS → reconcile; while FREE → none; FOCUS→FREE unsubscribes (`subscriptionCount == 0`); a burst while a reconcile is in progress → at most one queued reconcile.
+
+Robolectric:
+* `BroadcastZenChangeSignalsTest`: each of the 3 actions (sent with `setPackage`) emits; the receiver is unregistered after collection is cancelled (`ShadowApplication.registeredReceivers`).
+* `AndroidFocusNotifierTest`: with `POST_NOTIFICATIONS` granted → one ongoing notification on a low-importance channel, no actions, a non-null content intent, chronometer `when == since`; denied → nothing posted, no throw; `cancel` removes it.
+* `BootReceiverTest` (`@HiltAndroidTest`, real graph, `cancelApplicationScope` in `@After`): in FOCUS with the notification cleared, `BOOT_COMPLETED` / `MY_PACKAGE_REPLACED` → the notification is back; an unrelated action → nothing.
+
+Slice E2E `focus/FocusSliceE2ETest.kt` (extends `FocusTagE2E`, §2.2). The effects are still `PlaceholderFocusEffects` (no-op), so the observable is the **Focus notification** (asserted locally via `ShadowNotificationManager`). These assertions stay true once T4 lands.
+1. `scanTagDirect(ACTIVATE)` → FOCUS + notification; `advanceClock(25.minutes)`; `scanTagDirect(DEACTIVATE)` → FREE, no notification, `stats.first().todayTotal == 25.minutes`.
+2. Cold start: `seedPreferences("focus_state") { FocusStateStore(it).enterFocus(t0) }` → `startApp()` → FOCUS, notification shown, `currentSession == now - t0` (process death, D-41).
+3. Reboot: same seed → `reboot()` (it cancels notifications and doesn't run `startApp`) → notification shown again via `BootReceiver`.
+4. Re-assertion path: `startApp()`, `scanTagDirect(ACTIVATE)`, cancel all notifications, `turnZenRuleOffExternally()` → notification restored (proves broadcast → reconcile).
+5. A double scan of A keeps the session start (`state.first() == Focus(t0)`).
+
+Cross-layer scenarios E2E-1…13 aren't T2's (T2 merges first in G2); later merges write them.
+
+##### F9. Risks and concerns
+
+* **Re-assertion loop (contract expectation on T4):** `FocusEffects.enable()` must be a no-op when our rule is already `STATE_TRUE`. Otherwise its own FALSE→TRUE fires `ACTION_AUTOMATIC_ZEN_RULE_STATUS_CHANGED` → reconcile → FALSE→TRUE … forever. `conflate()` limits the rate but can't break such a loop. This fits the frozen KDoc ("idempotent"); T4 should test it.
+* **Hilt binding collision across layers:** if T3/T4/T5 each `@Provides` an unqualified `DataStore<Preferences>`, the merged graph fails with duplicate bindings. T2 avoids putting one in the graph; the other layers should do the same or qualify it.
+* **Dynamic receiver lifetime:** it exists only while the process lives (F4). If MC-07 shows gaps, the fix is a manifest receiver for `ACTION_AUTOMATIC_ZEN_RULE_STATUS_CHANGED` (delivered to DND-access holders since Q). That would be a T1 manifest change; not requested now.
+* **Disk errors:** an `IOException` from DataStore propagates out of `onTagScanned` (the contract promises only "no throw for permission problems"). T3's `NfcTriggerActivity` should treat a throw as "no change" feedback.
+* `goAsync` budget is ~10 s; reconcile is a few binder calls, so no timeout wrapper (YAGNI).
+* Robolectric delivering `BOOT_COMPLETED` to a Hilt `@AndroidEntryPoint` manifest receiver under `HiltTestApplication` is assumed (the harness self-test already sends it). If it fails, `BootReceiverTest` creates the receiver directly and calls `onReceive`.
+* The harness's `@After` cancels the app scope while a `goAsync` coroutine may still run; the `finally { finish() }` makes that safe.
 
 ---
 
