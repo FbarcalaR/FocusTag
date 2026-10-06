@@ -64,16 +64,52 @@ README.md, docs/MANUAL_CHECKS.md (T8)
 ## 2. Workflow rules (all tasks)
 
 1. Each task runs on a local worktree branch `task/Tn-<slug>` cut from the integration branch (D-52).
-2. A task edits **only** the files it owns. If it needs a change in a frozen `Contracts.kt` or a T1-owned file, it stops and asks the orchestrator, which makes the change on the integration branch and rebases the open worktrees.
-3. Loop: **Plan** (implementer refines subtasks under "Refinement notes") → **Plan review** (a separate subagent) → **Implement** (small commits) → **Test** (`./gradlew assembleDebug lint test` green) → **Review** (a separate subagent, max 3 cycles, then escalate to the user) → **Done** (merge, full build on the integration branch, set status).
+2. A task edits **only** the files it owns. If it needs a change in a frozen `Contracts.kt` or a T1-owned file, it stops and asks the orchestrator. The orchestrator makes the change on the integration branch and rebases the open worktrees.
+3. Loop: **Plan** (the implementer refines subtasks under "Refinement notes") → **Plan review** (a separate subagent; it may tighten the plan but must not change the goal or intent) → **Implement** (small commits, each with its tests) → **Test** (`./gradlew assembleDebug lint test` green) → **Review** (a separate subagent, at most 3 cycles, then escalate to the user) → **Integrate** (rebase on the integration head, add the cross-layer E2E scenarios this merge unlocks — see §2.2 — green) → **Done** (merge, full build on the integration branch, set status).
 4. After each parallel group: run a full `./gradlew assembleDebug lint test` on the integration branch, then push.
 5. Placeholders shipped by T1 (`Placeholder*` classes) must be **deleted** by the owning task. T8 checks that none remain.
+6. Gradle runs with `-Xmx2g` and in-process Kotlin compilation (set in `gradle.properties`), so four worktrees can build at once on the 4-core / 15 GB container.
+
+### 2.1 Engineering standards (all code)
+
+* **KISS / YAGNI:** the simplest thing that meets the acceptance criteria. No speculative abstractions, no frameworks beyond the agreed stack, and no "manager"/"helper" grab-bag classes.
+* **SOLID:** one reason to change per class. Depend on the `Contracts.kt` interfaces, not on implementations. Android framework calls are wrapped in thin adapters so decision logic stays pure and JVM-testable.
+* **Small units:** functions ≲ 20 lines with a single level of abstraction, and files ≲ 200 lines. Prefer `when` over nested `if`s. Keep cyclomatic complexity low; if a function needs a comment to explain its branches, split it.
+* **Naming over comments:** intention-revealing names. KDoc on public contracts only. Comments explain *why*, never *what*.
+* **Immutability & explicitness:** `val`, immutable data classes, sealed types for results and states. No nullable "maybe" flags where a sealed type fits. No `!!`.
+* **Errors:** expected failures are typed results (sealed classes). Exceptions only for programmer errors. Framework `SecurityException`s are caught at the adapter boundary.
+* **Coroutines:** structured concurrency only (injected scopes and dispatchers, no `GlobalScope`, no `runBlocking` in production code).
+* **Compose:** stateless screen composables (`XxxScreen(state, onEvent)`) plus a thin stateful wrapper that wires the ViewModel. Previews for each screen state.
+* **Tests:** Arrange-Act-Assert, one behaviour per test, names that read as sentences (`` `scanning desk tag while free starts focus` ``). Use fakes rather than mocks where a fake is simple.
+
+### 2.2 End-to-end tests as features land
+
+E2E tests are **not** a final phase. T1 ships an E2E harness: `test/.../e2e/FocusTagE2E.kt`, a Robolectric + Hilt test base with a small DSL (`scanTag(role)`, `scanUnknownTag()`, `openApp(pkg)`, `reboot()`, `killProcess()`, `revoke(permission)`, `assertMode(...)`, `assertZenRuleActive(...)`, `assertBlockingShown(...)`). It fakes only the hardware/OS edges (`NfcGateway`, system manager shadows). Every task adds the scenarios it can drive **in the same commit series as the feature**:
+
+* **Slice E2E** (written during Implement, owned by the task): the task's layer driven from its Android entry point (intent, broadcast, accessibility event, screen) with the other layers' placeholders/fakes.
+* **Cross-layer E2E** (written during Integrate): each scenario below lists the tasks it needs. **The task whose merge completes that set writes it**, after rebasing on the integration head. The files live in `test/.../e2e/scenarios/<Scenario>Test.kt`, one file per scenario, so ownership never overlaps.
+
+| Scenario | Needs |
+|----------|-------|
+| E2E-1 Desk tag while FREE → FOCUS persisted, zen rule active, notification shown | T2, T3, T4 |
+| E2E-2 Double desk scan / living-room tag while FREE → no change | T2, T3 |
+| E2E-3 Unknown tag, UID mismatch, foreign URI → ignored | T2, T3 |
+| E2E-4 Living-room tag while FOCUS → FREE, zen rule off, today's total updated | T2, T3, T4 |
+| E2E-5 FOCUS + open blocked app → blocking screen; allowed app → nothing | T2, T5 |
+| E2E-6 Blocked app already in foreground when FOCUS starts → blocked | T2, T3, T5 |
+| E2E-7 Process death in FOCUS → new graph, same DataStore → reconcile re-applies effects | T2, T4 |
+| E2E-8 Reboot broadcast in FOCUS → effects re-applied | T2, T4 |
+| E2E-9 DND access revoked mid-session → no crash, degraded status, banner on Status | T2, T4, T6 |
+| E2E-10 Zen rule turned off externally while FOCUS → re-asserted | T2, T4 |
+| E2E-11 Status screen reflects scans live (FREE → FOCUS → FREE), no exit control | T2, T3, T6 |
+| E2E-12 Setup: pair A and B via fake gateway → app routes to Status; reset blocked in FOCUS | T2, T3, T7 |
+| E2E-13 Setup: remove app from block list blocked in FOCUS, allowed in FREE | T2, T5, T7 |
 
 ## 3. Tasks
 
 ### T1 — Project skeleton, DI, navigation, contracts, CI · status: `todo`
 **Goal:** A buildable Compose app where all three Gradle commands pass, with frozen cross-layer contracts so later tasks can run in parallel.
-**Owns:** root Gradle files, `gradle/`, `gradlew*`, `settings.gradle.kts`, `app/build.gradle.kts`, `app/proguard-rules.pro`, `app/lint.xml`, `.gitignore`, `.github/workflows/ci.yml`, `scripts/setup-android-sdk.sh`, `AndroidManifest.xml`, `res/xml/*`, `res/values/{strings,themes,colors}.xml`, launcher icons, `FocusTagApp.kt`, `MainActivity.kt`, `di/`, `ui/theme/`, `ui/nav/`, `ui/common/`, every `*/Contracts.kt`, every `*/di/<Layer>Module.kt` + `Placeholder*.kt` (handed over to the layer task once T1 is done), `app/src/test/.../testing/` fakes.
+**Owns:** root Gradle files, `gradle/`, `gradlew*`, `settings.gradle.kts`, `app/build.gradle.kts`, `app/proguard-rules.pro`, `app/lint.xml`, `.gitignore`, `.github/workflows/ci.yml`, `scripts/setup-android-sdk.sh`, `AndroidManifest.xml`, `res/xml/*`, `res/values/{strings,themes,colors}.xml`, launcher icons, `FocusTagApp.kt`, `MainActivity.kt`, `di/`, `ui/theme/`, `ui/nav/`, `ui/common/`, every `*/Contracts.kt`, every `*/di/<Layer>Module.kt` + `Placeholder*.kt` (handed over to the layer task once T1 is done), `app/src/test/.../testing/` fakes, `app/src/test/.../e2e/FocusTagE2E.kt`.
 **Depends on:** —
 **Subtasks:**
 1. SDK bootstrap script (cmdline-tools, `platforms;android-37`, matching build-tools, `local.properties`), and `.gitignore`.
@@ -83,7 +119,7 @@ README.md, docs/MANUAL_CHECKS.md (T8)
 5. `MainActivity` + `FocusTagNavHost` with placeholder Status and Setup composables. Start destination: Setup if not both tags are paired, otherwise Status. Status has a "Setup" entry (top-bar icon) and Setup has back navigation.
 6. Write all `Contracts.kt` (KDoc on every member) + `Placeholder*` implementations + per-layer Hilt modules, so the graph is complete.
 7. Manifest declares: permissions (`NFC`, `POST_NOTIFICATIONS`, `RECEIVE_BOOT_COMPLETED`, `ACCESS_NOTIFICATION_POLICY`, `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS`, `WRITE_SECURE_SETTINGS` with `tools:ignore="ProtectedPermissions"`), `uses-feature nfc required=true`, `<queries>` launcher intent, `MainActivity`, `NfcTriggerActivity` (NDEF_DISCOVERED `focustag://toggle`, translucent theme), `BlockingActivity`, `FocusAccessibilityService` + `accessibility_service_config.xml`, `BootReceiver` — all pointing at stub classes in their layer packages (stubs owned by the layer task).
-8. Shared test fakes in `testing/`: `FakeClock`, `FakeNfcGateway`, `FakeFocusEffects`, `FakePermissionChecker`, `InMemoryDataStore` helper.
+8. Shared test fakes in `testing/`: `FakeClock`, `FakeNfcGateway`, `FakeFocusEffects`, `FakePermissionChecker`, and a temp-dir DataStore helper. E2E harness `e2e/FocusTagE2E.kt` + DSL (§2.2), with one harness self-test.
 9. CI workflow running `./gradlew assembleDebug lint test` with the SDK script. Smoke tests: one JVM test plus one Robolectric Compose test that navigates Status ↔ Setup.
 
 **Acceptance criteria:** the three commands pass from a clean clone after `scripts/setup-android-sdk.sh`; the app launches to the Setup placeholder; navigation works in the Robolectric test; every contract has KDoc; the manifest contains every component listed above.
@@ -106,7 +142,7 @@ README.md, docs/MANUAL_CHECKS.md (T8)
 8. `FocusNotifier`: ongoing notification channel "Focus active" (D-44). It is a no-op if the notification permission is missing.
 
 **Acceptance criteria:** all 4 (state × tag) combinations behave as specified; repeated scans don't change state or timestamps; state survives store re-creation (process death); reboot reconcile re-enables effects; today's total is correct across midnight; revoked permission → no crash, degraded flag set.
-**Test strategy:** pure JUnit for the state machine and stats (FakeClock, midnight cases); Robolectric for the store (real DataStore in a temp dir), engine with `FakeFocusEffects` (verify call sequences, concurrency with 50 parallel scans), BootReceiver intent → reconcile, notifier.
+**Test strategy:** pure JUnit for the state machine and stats (FakeClock, midnight cases); Robolectric for the store (real DataStore in a temp dir), engine with `FakeFocusEffects` (verify call sequences, concurrency with 50 parallel scans), BootReceiver intent → reconcile, notifier. Slice E2E: boot broadcast and app start drive reconcile through the real graph.
 
 ---
 
@@ -122,7 +158,7 @@ README.md, docs/MANUAL_CHECKS.md (T8)
 5. `NfcTriggerActivity`: parse `EXTRA_TAG` + `EXTRA_NDEF_MESSAGES` into `ScannedTag` → validate → `FocusController.onTagScanned` → toast ("Focus on" / "Free time" / "Already in focus" …) → `finish()`. Unknown tags finish silently.
 
 **Acceptance criteria:** unknown tag, wrong UID, malformed URI, foreign scheme and an unpaired role are all ignored; a valid A/B scan reaches the controller exactly once per intent; re-pairing invalidates the old tagId; write failures leave the existing pairing untouched; no `android.nfc` types outside `AndroidNfcGateway`/`NfcTriggerActivity`.
-**Test strategy:** JUnit table tests for the codec and validator; Robolectric for the store and for `NfcTriggerActivity` (build an intent with a mocked/shadowed `Tag` + `NdefMessage`, assert calls on a fake `FocusController` via `@BindValue`); `FakeNfcGateway` for pairing-flow tests.
+**Test strategy:** JUnit table tests for the codec and validator; Robolectric for the store and for `NfcTriggerActivity` (build an intent with a mocked/shadowed `Tag` + `NdefMessage`, assert calls on a fake `FocusController` via `@BindValue`); `FakeNfcGateway` for pairing-flow tests. Slice E2E: NDEF intent → controller via the harness.
 
 ---
 
@@ -138,7 +174,7 @@ README.md, docs/MANUAL_CHECKS.md (T8)
 5. `GrayscaleFallbackSettings` (DataStore toggle).
 
 **Acceptance criteria:** activate/deactivate are idempotent; no duplicate rules after repeated calls or process death; `SecurityException` is surfaced as a status, not a crash; fallback restores the exact previous values; every checklist item has a correct status and a resolvable intent; the adb command contains the real `applicationId`.
-**Test strategy:** Robolectric with `ShadowNotificationManager` (verify rule creation, state calls, device effects, duplicate prevention); fallback tested against Robolectric `Settings.Secure` with the permission granted/denied via `ShadowApplication`; permission checker tests per item; intent resolution assertions.
+**Test strategy:** Robolectric with `ShadowNotificationManager` (verify rule creation, state calls, device effects, duplicate prevention); fallback tested against Robolectric `Settings.Secure` with the permission granted/denied via `ShadowApplication`; permission checker tests per item; intent resolution assertions. Slice E2E: `FocusEffects` enable/disable through the real graph.
 
 ---
 
@@ -154,7 +190,7 @@ README.md, docs/MANUAL_CHECKS.md (T8)
 5. `BlockingActivity`: full-screen Compose UI ("<App> is blocked during Focus", "Scan the living-room tag to exit"), back/“Go home” → launcher home intent; finishes itself if the state becomes FREE.
 
 **Acceptance criteria:** blocked package in FOCUS → blocking screen; FREE → never blocks; always-allowed packages are never blocked even if listed; blocked app already in the foreground when Focus starts gets blocked; no infinite relaunch loop; removing from the list is impossible while FOCUS (adding works).
-**Test strategy:** JUnit table tests for the decider; Robolectric for the store, the app repository (`ShadowPackageManager` with launcher activities), the service (`onAccessibilityEvent` with synthetic events, assert started intent via `ShadowApplication.nextStartedActivity`), and a Compose UI test for `BlockingActivity`.
+**Test strategy:** JUnit table tests for the decider; Robolectric for the store, the app repository (`ShadowPackageManager` with launcher activities), the service (`onAccessibilityEvent` with synthetic events, assert started intent via `ShadowApplication.nextStartedActivity`), and a Compose UI test for `BlockingActivity`. Slice E2E: accessibility event → blocking screen through the harness.
 
 ---
 
@@ -188,19 +224,18 @@ README.md, docs/MANUAL_CHECKS.md (T8)
 
 ---
 
-### T8 — Integration hardening, docs, final verification · status: `todo`
-**Goal:** End-to-end confidence, no leftovers, user documentation.
-**Owns:** `test/.../integration/**`, `README.md`, `docs/MANUAL_CHECKS.md`, PLAN.md status updates. Any production fix found here is handed back to the owning layer's task as a review-cycle item.
+### T8 — Hardening, docs, final verification · status: `todo`
+**Goal:** No leftovers, a full E2E matrix, user documentation.
+**Owns:** `README.md`, `docs/MANUAL_CHECKS.md`, PLAN.md status updates, any E2E scenario from §2.2 still missing. A production fix found here goes back to the owning layer's task as a review-cycle item.
 **Depends on:** T2–T7.
 **Subtasks:**
-1. Robolectric end-to-end tests with the real Hilt graph (only `NfcGateway` and system managers faked/shadowed): Tag A intent → FOCUS persisted → zen rule active → blocked app event → blocking activity; Tag B → FREE → rule off; double A scan; unknown tag; simulated process death (new graph, same DataStore files) → reconcile; boot broadcast → effects re-applied; permission revoked mid-session → no crash + banner state.
-2. Grep check: no `Placeholder*` classes remain, and no `android.nfc` imports outside the allowed files.
-3. `README.md`: build (SDK script), install (`adb install -r`), permission walkthrough incl. "Allow restricted settings", DND access, battery, notifications, optional adb `WRITE_SECURE_SETTINGS` command, pairing tags, recommended tags, manual check pointer, known limitations.
-4. `docs/MANUAL_CHECKS.md` (list in §5 expanded into steps with expected results).
-5. Final `./gradlew assembleDebug lint test` on the integration branch, push, completion report.
+1. Audit: every E2E scenario in §2.2 exists and passes. No `Placeholder*` classes remain. No `android.nfc` imports outside the allowed files. Standards in §2.1 are respected (separate reviewer subagent).
+2. `README.md`: build (SDK script), install (`adb install -r`), permission walkthrough incl. "Allow restricted settings", DND access, battery, notifications, the optional adb `WRITE_SECURE_SETTINGS` command, pairing tags, recommended tags, a pointer to the manual checks, known limitations.
+3. `docs/MANUAL_CHECKS.md` (the list in §5 expanded into steps with expected results).
+4. Final `./gradlew assembleDebug lint test` on the integration branch, push, completion report.
 
-**Acceptance criteria:** all E2E scenarios pass; README covers every permission and command; all tasks are `done`.
-**Test strategy:** as above.
+**Acceptance criteria:** the audit is clean; the README covers every permission and command; all tasks are `done`.
+**Test strategy:** the full suite; the audit.
 
 ## 4. Parallel groups
 
@@ -210,6 +245,8 @@ README.md, docs/MANUAL_CHECKS.md (T8)
 | **G2** | T2, T3, T4, T5 | They depend only on T1 contracts; file ownership is disjoint (separate packages, `strings_<layer>.xml`, separate test dirs); each builds alone because T1 placeholders complete the DI graph (D-50) | Merge in order T2 → T4 → T5 → T3, full build after each merge + at the end, push |
 | **G3** | T6, T7 | Both depend only on contracts + G2 bindings; disjoint `ui/status` vs `ui/setup` | Full build + push |
 | **G4** | T8 | Needs everything | Final build, report |
+
+Cross-layer E2E scenarios (§2.2) are written during each merge, so every group gate already runs every scenario its merged tasks unlock.
 
 ## 5. Manual device checks (Pixel 10a, cannot be automated)
 
