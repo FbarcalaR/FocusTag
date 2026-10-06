@@ -3,6 +3,7 @@ package io.github.fbarcalar.focustag.e2e
 import android.os.Looper
 import kotlin.time.Duration
 import kotlin.time.TimeSource
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import org.robolectric.Shadows.shadowOf
@@ -19,11 +20,13 @@ internal fun idleMainLooper() = shadowOf(Looper.getMainLooper()).idle()
  */
 internal fun retryUntilPasses(timeout: Duration, assertion: suspend () -> Unit) {
     val start = TimeSource.Monotonic.markNow()
-    while (true) {
+    var lastFailure: Throwable? = null
+    while (start.elapsedNow() < timeout) {
         idleMainLooper()
         val remaining = timeout - start.elapsedNow()
         val failure = runCatching { runBlocking { withTimeout(remaining) { assertion() } } }.exceptionOrNull() ?: return
-        if (start.elapsedNow() >= timeout) throw failure
+        if (failure !is TimeoutCancellationException || lastFailure == null) lastFailure = failure
         Thread.sleep(POLL_MILLIS)
     }
+    throw lastFailure ?: AssertionError("Assertion was never attempted within $timeout")
 }

@@ -51,7 +51,7 @@ class NavigationTest {
 
     @After
     fun tearDown() {
-        scenario.close()
+        if (::scenario.isInitialized) scenario.close()
         cancelApplicationScope(context)
     }
 
