@@ -958,7 +958,7 @@ Reader mode is **on whenever the Setup screen is RESUMED and NFC is ENABLED**; t
 
 ---
 
-### T8 — Hardening, docs, final verification · status: `in-progress`
+### T8 — Hardening, docs, final verification · status: `review`
 **Goal:** No leftovers, a full E2E matrix, user documentation.
 **Owns:** `README.md`, `docs/MANUAL_CHECKS.md`, PLAN.md status updates, any E2E scenario from §2.2 still missing. A production fix found here goes back to the owning layer's task as a review-cycle item.
 **Depends on:** T2–T7.
@@ -1086,6 +1086,26 @@ Dagger ≥ 2.25 reads qualifiers from Kotlin property metadata, so drop `@field:
   * New **MC-14:** NFC off → Setup shows the NFC prompt, and its button opens NFC settings.
 * MC-13 and MC-14 are also appended to §5, so the plan and the checklist match.
 
+##### H7. Implementation notes (T8, as built)
+
+* **H1 as planned**, plus one change: the no-op `updateData { it }` runs in `Dispatchers.Unconfined`. DataStore runs an update's transform in the *caller's* context while it holds the store lock. So a `consistentData()` collector on Main (VMs, `BlockingActivity`) kept the lock until the main thread was free, and under Robolectric that deadlocked `cancelApplicationScope` in `BlockingActivityTest`'s teardown (seen as a 15-minute hang). Recorded on D-48.
+  * `ConsistentDataTest` has 3 tests.
+  * Swapping `consistentData()` for plain `data` makes "delivers a write that was in flight" fail with a 1 s timeout. The "raw data misses…" test passes on 1.2.1.
+* **Harness consequence:** a store read now waits for an in-flight write. When that write is a Setup VM's `edit` from `viewModelScope`, its transform needs Main. An `eventually` attempt that blocks Main in `runBlocking` then waited its whole timeout (E2E-12/13 failed in 2 of 2 runs). `retryUntilPasses` now caps each attempt at 250 ms and idles the looper between attempts. This is test-only: production never blocks Main.
+* **H2:** after the fixes, `e2e.*` + `blocker.*` + `datastore.*` with `--rerun` passed **5/5 runs, 96 tests each, 0 failures**. That includes E2E-6.
+* **H3:** `@field:` dropped. The build and the blocker tests confirm the injection. The lint warning is gone.
+* **H4 audit:**
+  * All 13 §2.2 scenarios exist and pass.
+  * No `Placeholder*` remains.
+  * `android.nfc` is imported only in `AndroidNfcGateway*.kt`.
+  * There is no `!!` in main or test code, and no `GlobalScope`/`runBlocking` in main.
+  * No file is over 200 lines: `FocusEngineTest` was split into `FocusEngineTest` (194) and `FocusEngineConcurrencyTest`.
+  * Functions over 20 lines in main: `SetupDestination` (25, VM wiring) and `rememberPermissionActionLauncher` (28, launcher wiring). Both are accepted as single-purpose Compose wiring.
+  * Every screen has previews.
+  * The only `.data` read left in main is `DaltonizerSnapshotStore`'s `first()`. No `edit` transform reads a store flow.
+  * Lint: 0 errors and 4 warnings, all accepted: `AndroidGradlePluginVersion` (Gradle 9.8.1), `NewerVersionAvailable` ×2 (Kotlin 2.4.20, D-02) and `UnnecessaryRequiredFeature` (NFC).
+* **H5/H6:** `README.md` and `docs/MANUAL_CHECKS.md` (MC-01…MC-14) written. The adb equivalents not tried on a device are marked *(unverified)*. §5 now lists MC-13/MC-14.
+
 ## 4. Parallel groups
 
 | Group | Tasks | Can run concurrently because | Gate after the group |
@@ -1111,3 +1131,5 @@ Cross-layer E2E scenarios (§2.2) are written during each merge, so every group 
 * **MC-10** Revoke DND access / disable the accessibility service mid-session → no crash; the Status banner shows it; re-granting restores effects.
 * **MC-11** Phone locked (screen on): scanning does nothing (expected, documented Android behaviour).
 * **MC-12** Session timer and today's total look right over a session that crosses midnight (or by changing the device time).
+* **MC-13** TalkBack: the mode is announced as a heading and on change, the timers are read as words ("1 hour, 5 minutes"), and the warning banner is one button.
+* **MC-14** NFC off: Setup shows the NFC prompt, its button opens NFC settings, and the prompt clears once NFC is back on.
