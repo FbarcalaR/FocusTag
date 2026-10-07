@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="blocking_title">%1$s is blocked during Focus</string>
+    <string name="blocking_hint">Scan the living-room tag to exit</string>
+    <string name="blocking_go_home">Go home</string>
+    <string name="blocking_unknown_app">This app</string>
+</resources>
