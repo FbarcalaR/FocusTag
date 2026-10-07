@@ -45,6 +45,9 @@ internal fun StatusScreen(state: StatusUiState, onOpenSetup: () -> Unit, modifie
     }
 }
 
+private val StatusUiState.Ready.hasWarnings: Boolean
+    get() = missingPermissions.isNotEmpty() || failedEffects.isNotEmpty()
+
 @Composable
 private fun StatusContent(state: StatusUiState.Ready, onOpenSetup: () -> Unit, modifier: Modifier = Modifier) {
     Column(
@@ -52,7 +55,7 @@ private fun StatusContent(state: StatusUiState.Ready, onOpenSetup: () -> Unit, m
         modifier = modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(24.dp),
     ) {
-        StatusWarnings(state.missingPermissions, state.failedEffects, onOpenSetup)
+        if (state.hasWarnings) StatusWarnings(state.missingPermissions, state.failedEffects, onOpenSetup)
         ModeIndicator(state.mode)
         SessionTimers(state.mode, state.currentSession, state.todayTotal)
         ModeHint(state.mode)
