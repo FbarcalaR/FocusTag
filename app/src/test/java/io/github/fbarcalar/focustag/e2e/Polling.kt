@@ -28,8 +28,8 @@ internal fun retryUntilPasses(timeout: Duration, assertion: suspend () -> Unit) 
     var lastFailure: Throwable? = null
     while (start.elapsedNow() < timeout) {
         idleMainLooper()
-        val remaining = timeout - start.elapsedNow()
-        val failure = runCatching { runBlocking { withTimeout(minOf(remaining, ATTEMPT_TIMEOUT)) { assertion() } } }.exceptionOrNull() ?: return
+        val attemptTimeout = minOf(timeout - start.elapsedNow(), ATTEMPT_TIMEOUT)
+        val failure = runCatching { runBlocking { withTimeout(attemptTimeout) { assertion() } } }.exceptionOrNull() ?: return
         if (failure !is TimeoutCancellationException || lastFailure == null) lastFailure = failure
         Thread.sleep(POLL_MILLIS)
     }
