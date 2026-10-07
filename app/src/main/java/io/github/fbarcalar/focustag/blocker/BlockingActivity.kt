@@ -52,9 +52,16 @@ class BlockingActivity : ComponentActivity() {
     @Composable
     private fun BlockingContent() {
         val packageName by blockedPackage
-        val label by produceState<String?>(null, packageName) { value = installedApps.label(packageName) }
-        BlockingScreen(appLabel = label ?: stringResource(R.string.blocking_unknown_app), onGoHome = ::goHome)
+        val label by produceState<AppLabel>(AppLabel.Loading, packageName) { value = loadLabel(packageName) }
+        when (val current = label) {
+            AppLabel.Loading -> Unit
+            is AppLabel.Known -> BlockingScreen(appLabel = current.name, onGoHome = ::goHome)
+            AppLabel.Unknown -> BlockingScreen(stringResource(R.string.blocking_unknown_app), onGoHome = ::goHome)
+        }
     }
+
+    private suspend fun loadLabel(packageName: String): AppLabel =
+        installedApps.label(packageName)?.let(AppLabel::Known) ?: AppLabel.Unknown
 
     private fun finishWhenFree() {
         lifecycleScope.launch {
@@ -73,6 +80,15 @@ class BlockingActivity : ComponentActivity() {
         val home = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         startActivity(home)
         finish()
+    }
+
+    /** The blocked app's name; nothing is drawn while it loads, so no fallback flashes. */
+    private sealed interface AppLabel {
+        data object Loading : AppLabel
+
+        data class Known(val name: String) : AppLabel
+
+        data object Unknown : AppLabel
     }
 
     private fun Intent.blockedPackage(): String = getStringExtra(EXTRA_BLOCKED_PACKAGE).orEmpty()

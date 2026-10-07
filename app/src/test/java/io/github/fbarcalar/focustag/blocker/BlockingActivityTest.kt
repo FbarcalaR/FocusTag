@@ -79,6 +79,7 @@ class BlockingActivityTest {
     @Test
     fun `go home opens the launcher and finishes`() {
         launch(BLOCKED)
+        assertTextShown("Go home")
 
         composeRule.onNodeWithText("Go home").performClick()
 
