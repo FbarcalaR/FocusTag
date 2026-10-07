@@ -103,6 +103,7 @@ class AndroidNfcGatewayTest {
         gateway.enableReaderMode(activity) { delivered += it }
         shadowAdapter().dispatchTagDiscovered(mockTag())
         gateway.disableReaderMode(activity)
+        shadowAdapter().dispatchTagDiscovered(mockTag())
 
         assertThat(delivered.single().scanned).isEqualTo(ScannedTag("04A1B20CD4E506", emptyList()))
         assertThat(shadowAdapter().isInReaderMode).isFalse()
