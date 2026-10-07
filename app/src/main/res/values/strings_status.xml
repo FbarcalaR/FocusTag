@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="status_mode_focus">FOCUS</string>
+    <string name="status_mode_free">FREE TIME</string>
+    <string name="status_current_session">Current session</string>
+    <string name="status_today_total">Today</string>
+    <string name="status_hint_focus">Scan the living-room tag to exit</string>
+    <string name="status_hint_free">Scan the desk tag to focus</string>
+    <string name="status_missing_permissions">Missing: %1$s</string>
+    <string name="status_effect_zen_rule_failed">Do Not Disturb and grayscale are not active. Tap to check Setup.</string>
+    <string name="status_effect_grayscale_fallback_failed">The grayscale fallback could not be applied. Tap to check Setup.</string>
+    <string name="status_permission_nfc">NFC</string>
+    <string name="status_permission_accessibility">Accessibility service</string>
+    <string name="status_permission_dnd_access">Do Not Disturb access</string>
+    <string name="status_permission_notifications">Notifications</string>
+    <string name="status_permission_battery">Battery optimisation exemption</string>
+    <string name="status_permission_grayscale">Grayscale</string>
+    <string name="status_permission_secure_settings">Secure settings grant</string>
+    <plurals name="status_spoken_hours">
+        <item quantity="one">%d hour</item>
+        <item quantity="other">%d hours</item>
+    </plurals>
+    <plurals name="status_spoken_minutes">
+        <item quantity="one">%d minute</item>
+        <item quantity="other">%d minutes</item>
+    </plurals>
+    <plurals name="status_spoken_seconds">
+        <item quantity="one">%d second</item>
+        <item quantity="other">%d seconds</item>
+    </plurals>
+</resources>
