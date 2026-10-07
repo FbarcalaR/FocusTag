@@ -89,21 +89,23 @@ E2E tests are **not** a final phase. T1 ships an E2E harness: `test/.../e2e/Focu
 * **Slice E2E** (written during Implement, owned by the task): the task's layer driven from its Android entry point (intent, broadcast, accessibility event, screen) with the other layers' placeholders/fakes.
 * **Cross-layer E2E** (written during Integrate): each scenario below lists the tasks it needs. **The task whose merge completes that set writes it**, after rebasing on the integration head. The files live in `test/.../e2e/scenarios/<Scenario>Test.kt`, one file per scenario, so ownership never overlaps. Slice E2E files live in the task's own test dir (`test/.../<layer>/<Layer>SliceE2ETest.kt`).
 
-| Scenario | Needs |
-|----------|-------|
-| E2E-1 Desk tag while FREE → FOCUS persisted, zen rule active, notification shown | T2, T3, T4 |
-| E2E-2 Double desk scan / living-room tag while FREE → no change | T2, T3 |
-| E2E-3 Unknown tag, UID mismatch, foreign URI → ignored | T2, T3 |
-| E2E-4 Living-room tag while FOCUS → FREE, zen rule off, today's total updated | T2, T3, T4 |
-| E2E-5 FOCUS + open blocked app → blocking screen; allowed app → nothing | T2, T5 |
-| E2E-6 Blocked app already in foreground when FOCUS starts → blocked | T2, T3, T5 |
-| E2E-7 Process death in FOCUS (cold start from a seeded FOCUS store) → reconcile re-applies effects, exactly one zen rule | T2, T4 |
-| E2E-8 Reboot broadcast in FOCUS → effects re-applied | T2, T4 |
-| E2E-9 DND access revoked mid-session → no crash, degraded status, banner on Status | T2, T4, T6 |
-| E2E-10 Zen rule turned off externally while FOCUS → re-asserted | T2, T4 |
-| E2E-11 Status screen reflects scans live (FREE → FOCUS → FREE), no exit control | T2, T3, T6 |
-| E2E-12 Setup: pair A and B via fake gateway → app routes to Status; reset blocked in FOCUS | T2, T3, T7 |
-| E2E-13 Setup: remove app from block list blocked in FOCUS, allowed in FREE | T2, T5, T7 |
+| Scenario | Needs | Written by |
+|----------|-------|------------|
+| E2E-1 Desk tag while FREE → FOCUS persisted, zen rule active, notification shown | T2, T3, T4 | T4 (T2, T3 merged) |
+| E2E-2 Double desk scan / living-room tag while FREE → no change | T2, T3 | **T3** · `E2E2NoChangeScansTest` |
+| E2E-3 Unknown tag, UID mismatch, foreign URI → ignored | T2, T3 | **T3** · `E2E3IgnoredTagsTest` |
+| E2E-4 Living-room tag while FOCUS → FREE, zen rule off, today's total updated | T2, T3, T4 | T4 (T2, T3 merged) |
+| E2E-5 FOCUS + open blocked app → blocking screen; allowed app → nothing | T2, T5 | T5 (T2 merged) |
+| E2E-6 Blocked app already in foreground when FOCUS starts → blocked | T2, T3, T5 | T5 (T2, T3 merged) |
+| E2E-7 Process death in FOCUS (cold start from a seeded FOCUS store) → reconcile re-applies effects, exactly one zen rule | T2, T4 | T4 |
+| E2E-8 Reboot broadcast in FOCUS → effects re-applied | T2, T4 | T4 |
+| E2E-9 DND access revoked mid-session → no crash, degraded status, banner on Status | T2, T4, T6 | last of T4/T6 |
+| E2E-10 Zen rule turned off externally while FOCUS → re-asserted | T2, T4 | T4 |
+| E2E-11 Status screen reflects scans live (FREE → FOCUS → FREE), no exit control | T2, T3, T6 | T6 (T2, T3 merged) |
+| E2E-12 Setup: pair A and B via fake gateway → app routes to Status; reset blocked in FOCUS | T2, T3, T7 | T7 (T2, T3 merged) |
+| E2E-13 Setup: remove app from block list blocked in FOCUS, allowed in FREE | T2, T5, T7 | last of T5/T7 |
+
+Merges now follow readiness, not the G2 order in §4 (T2, then T3). "Written by" names the task that wrote the scenario (in bold), or the task expected to complete its set.
 
 ## 3. Tasks
 
@@ -532,7 +534,7 @@ Cross-layer scenarios E2E-1…13 aren't T2's (T2 merges first in G2); later merg
 
 ---
 
-### T3 — NFC layer: gateway, validation, pairing, tag writing, background trigger · status: `review`
+### T3 — NFC layer: gateway, validation, pairing, tag writing, background trigger · status: `done`
 **Goal:** Tags can be paired/written, and scans with the app closed are validated and forwarded to the engine.
 **Owns:** `nfc/**` except `Contracts.kt` (incl. `nfc/di/NfcModule.kt`, `nfc/NfcTriggerActivity.kt`), `res/values/strings_nfc.xml`, `test/.../nfc/**`.
 **Depends on:** T1. **Decisions:** D-10–D-16.
@@ -593,7 +595,7 @@ Cross-layer scenarios E2E-1…13 aren't T2's (T2 merges first in G2); later merg
 * Each Hilt test calls `cancelApplicationScope` in `@After` (R9), which the harness does already.
 * Before Review: `grep -rln 'android\.nfc' app/src/main` lists only `nfc/AndroidNfcGateway*.kt` (R2.4; `AndroidNfcGatewayTest` is the only test that imports it).
 
-*Cross-layer E2E at Integrate:* the merge order is T2 → T4 → T5 → **T3 last**, so T3 writes **E2E-1, -2, -3, -4, -6** in `e2e/scenarios/`.
+*Cross-layer E2E at Integrate:* T3 merged second (right after T2, merge order by readiness), so it wrote **E2E-2** and **E2E-3**. E2E-1/-4 pass to T4 and E2E-6 to T5 (see §2.2).
 
 ##### N5. Risks
 
