@@ -729,7 +729,7 @@ The three `Placeholder*` files are deleted.
 
 ---
 
-### T6 — Status screen · status: `review`
+### T6 — Status screen · status: `done`
 **Goal:** Clear FOCUS / FREE TIME display with timers, hint and a permission warning, and no way to exit.
 **Owns:** `ui/status/**`, `res/values/strings_status.xml`, `test/.../ui/status/**`.
 **Depends on:** T1 (contracts), merged after T2 & T4 so it runs against real bindings. **Decisions:** D-45, D-46.
@@ -789,6 +789,7 @@ The three `Placeholder*` files are deleted.
 * Built as planned (U1–U4). `LifecycleResumeEffect` is keyed on the ViewModel instance. Previews use `FocusTagTheme(dynamicColor = false)` so they render the same everywhere.
 * With both effects failed, the notice lists both messages in one tap target (enum order).
 * `StatusTestData.kt` (test helpers: JVM-safe `PermissionItem` with an `AdbGrant` action, `readyState(...)`) is shared by the status tests.
+* Review fixes: warnings are composed only when there is something to show; whole hours are spoken without "0 minutes"; `StatusResumeRefreshTest` (Hilt, real graph) proves the ON_RESUME → `refresh()` wiring by revoking DND access on the shadow alone, then pausing and resuming the activity. It fails if the `onResume()` call is removed.
 * E2E-11 needed no fallback for U5's first risk: the compose rule keeps finding `MainActivity` while `NfcTriggerActivity` runs.
 * **For T1/T8:** `R.string.title_status` (T1's `strings.xml`) is now unused (lint `UnusedResources` warning); it was only used by the placeholder. Not removed here because the file is T1-owned.
 
