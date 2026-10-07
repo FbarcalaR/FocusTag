@@ -4,7 +4,9 @@ import com.google.common.truth.Truth.assertThat
 import io.github.fbarcalar.focustag.focus.TagRole
 import io.github.fbarcalar.focustag.testing.FakeNfcGateway
 import io.github.fbarcalar.focustag.testing.FakeTagHandle
+import java.io.IOException
 import java.util.UUID
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.test.runTest
 import org.junit.Test
 
@@ -59,5 +61,28 @@ class NfcTagWriterTest {
         assertThat(paired.uidHex).isEqualTo(a.uidHex)
         assertThat(paired.tagId).isNotEqualTo(a.tagId)
         assertThat(repository.pairings.value[TagRole.ACTIVATE]).isEqualTo(paired)
+    }
+
+    @Test
+    fun `an unreadable pairing store fails the pairing as an io error`() = runTest {
+        val unreadable = object : PairingRepository by InMemoryPairingRepository() {
+            override val pairings = flow<Map<TagRole, TagPairing>> { throw IOException("disk") }
+        }
+
+        val result = NfcTagWriter(gateway, unreadable).pair(handle(a.uidHex), TagRole.ACTIVATE)
+
+        assertThat(result).isEqualTo(PairingResult.WriteFailed(WriteFailure.IO_ERROR))
+        assertThat(gateway.writes).isEmpty()
+    }
+
+    @Test
+    fun `a failing save after a write is an io error`() = runTest {
+        val failingSave = object : PairingRepository by InMemoryPairingRepository() {
+            override suspend fun save(pairing: TagPairing): PairingResult = throw IOException("disk")
+        }
+
+        val result = NfcTagWriter(gateway, failingSave).pair(handle(a.uidHex), TagRole.ACTIVATE)
+
+        assertThat(result).isEqualTo(PairingResult.WriteFailed(WriteFailure.IO_ERROR))
     }
 }

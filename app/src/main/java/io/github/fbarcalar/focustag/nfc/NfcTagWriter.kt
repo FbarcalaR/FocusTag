@@ -1,6 +1,7 @@
 package io.github.fbarcalar.focustag.nfc
 
 import io.github.fbarcalar.focustag.focus.TagRole
+import java.io.IOException
 import java.util.UUID
 import javax.inject.Inject
 import kotlinx.coroutines.flow.first
@@ -10,7 +11,13 @@ class NfcTagWriter @Inject constructor(
     private val gateway: NfcGateway,
     private val repository: PairingRepository,
 ) : TagWriter {
-    override suspend fun pair(tag: NfcTagHandle, role: TagRole): PairingResult {
+    override suspend fun pair(tag: NfcTagHandle, role: TagRole): PairingResult = try {
+        writeAndSave(tag, role)
+    } catch (_: IOException) {
+        PairingResult.WriteFailed(WriteFailure.IO_ERROR)
+    }
+
+    private suspend fun writeAndSave(tag: NfcTagHandle, role: TagRole): PairingResult {
         val uid = tag.scanned.uidHex
         if (isPairedToOtherRole(uid, role)) return PairingResult.UidUsedByOtherRole
         val tagId = UUID.randomUUID().toString()
