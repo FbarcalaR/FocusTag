@@ -19,7 +19,7 @@ class FocusStartHook @Inject constructor(
     private val reconciler: FocusReconciler,
 ) : AppStartHook {
     override suspend fun onAppStart() {
-        reconciler.reconcile()
+        reconciler.reconcileLogged()
         reconcileOnZenChangesWhileFocused()
     }
 
@@ -29,5 +29,5 @@ class FocusStartHook @Inject constructor(
         .distinctUntilChanged()
         .flatMapLatest { focused -> if (focused) signals.changes() else emptyFlow() }
         .conflate()
-        .collect { reconciler.reconcile() }
+        .collect { reconciler.reconcileLogged() }
 }

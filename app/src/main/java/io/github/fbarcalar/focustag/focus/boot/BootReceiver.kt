@@ -6,6 +6,7 @@ import android.content.Intent
 import dagger.hilt.android.AndroidEntryPoint
 import io.github.fbarcalar.focustag.di.ApplicationScope
 import io.github.fbarcalar.focustag.focus.FocusReconciler
+import io.github.fbarcalar.focustag.focus.reconcileLogged
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
@@ -23,13 +24,8 @@ class BootReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action !in HANDLED_ACTIONS) return
         val pending = goAsync()
-        appScope.launch {
-            try {
-                reconciler.reconcile()
-            } finally {
-                pending.finish()
-            }
-        }
+        // invokeOnCompletion also runs when the scope is already cancelled and the block never starts.
+        appScope.launch { reconciler.reconcileLogged() }.invokeOnCompletion { pending.finish() }
     }
 
     private companion object {
