@@ -6,6 +6,7 @@ import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.emptyPreferences
+import io.github.fbarcalar.focustag.datastore.consistentData
 import io.github.fbarcalar.focustag.focus.FocusState
 import io.github.fbarcalar.focustag.focus.store.FocusPreferences.writeFocus
 import io.github.fbarcalar.focustag.focus.store.FocusPreferences.writeFree
@@ -28,7 +29,7 @@ data class FocusSnapshot(val state: FocusState, val dailyTotals: Map<LocalDate, 
 
 /** The single source of truth for the focus state and daily totals (D-41). */
 class FocusStateStore(private val dataStore: DataStore<Preferences>) {
-    val snapshot: Flow<FocusSnapshot> = dataStore.data.map(FocusPreferences::decode).distinctUntilChanged()
+    val snapshot: Flow<FocusSnapshot> = dataStore.consistentData().map(FocusPreferences::decode).distinctUntilChanged()
 
     val state: Flow<FocusState> = snapshot.map { it.state }.distinctUntilChanged()
 

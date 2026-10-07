@@ -6,6 +6,7 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.stringPreferencesKey
+import io.github.fbarcalar.focustag.datastore.consistentData
 import io.github.fbarcalar.focustag.focus.TagRole
 import java.io.IOException
 import kotlinx.coroutines.flow.Flow
@@ -16,7 +17,7 @@ import kotlinx.coroutines.flow.map
 /** Pairings persisted in the `tag_pairings` DataStore (D-11). A role missing either key is unpaired. */
 class TagPairingStore(private val dataStore: DataStore<Preferences>) : PairingRepository {
     override val pairings: Flow<Map<TagRole, TagPairing>> =
-        dataStore.data
+        dataStore.consistentData()
             .catch { error -> if (error is IOException) emit(emptyPreferences()) else throw error }
             .map { prefs -> prefs.toPairings() }
             .distinctUntilChanged()

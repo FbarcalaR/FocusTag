@@ -8,6 +8,7 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.stringSetPreferencesKey
 import io.github.fbarcalar.focustag.blocker.di.BlockListPreferences
+import io.github.fbarcalar.focustag.datastore.consistentData
 import io.github.fbarcalar.focustag.focus.FocusState
 import io.github.fbarcalar.focustag.focus.FocusStateReader
 import java.io.File
@@ -29,7 +30,7 @@ class BlockListStore @Inject constructor(
     @param:BlockListPreferences private val dataStore: DataStore<Preferences>,
     private val focusState: FocusStateReader,
 ) : BlockListRepository {
-    override val blockedPackages: Flow<Set<String>> = dataStore.data
+    override val blockedPackages: Flow<Set<String>> = dataStore.consistentData()
         .retryWhen { error, _ -> error is IOException && waitBeforeRetry() }
         .map { it[BLOCKED_PACKAGES].orEmpty() }
         .distinctUntilChanged()
