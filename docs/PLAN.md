@@ -99,9 +99,9 @@ E2E tests are **not** a final phase. T1 ships an E2E harness: `test/.../e2e/Focu
 | E2E-6 Blocked app already in foreground when FOCUS starts → blocked | T2, T3, T5 | T5 (T2, T3 merged) |
 | E2E-7 Process death in FOCUS (cold start from a seeded FOCUS store) → reconcile re-applies effects, exactly one zen rule | T2, T4 | **T4** · `E2E7ProcessDeathInFocusTest` |
 | E2E-8 Reboot broadcast in FOCUS → effects re-applied | T2, T4 | **T4** · `E2E8RebootInFocusTest` |
-| E2E-9 DND access revoked mid-session → no crash, degraded status, banner on Status | T2, T4, T6 | T6 (T2, T4 merged) |
+| E2E-9 DND access revoked mid-session → no crash, degraded status, banner on Status | T2, T4, T6 | **T6** · `E2E9DndRevokedMidSessionTest` |
 | E2E-10 Zen rule turned off externally while FOCUS → re-asserted | T2, T4 | **T4** · `E2E10ZenRuleExternallyOffTest` |
-| E2E-11 Status screen reflects scans live (FREE → FOCUS → FREE), no exit control | T2, T3, T6 | T6 (T2, T3 merged) |
+| E2E-11 Status screen reflects scans live (FREE → FOCUS → FREE), no exit control | T2, T3, T6 | **T6** · `E2E11StatusReflectsScansTest` |
 | E2E-12 Setup: pair A and B via fake gateway → app routes to Status; reset blocked in FOCUS | T2, T3, T7 | T7 (T2, T3 merged) |
 | E2E-13 Setup: remove app from block list blocked in FOCUS, allowed in FREE | T2, T5, T7 | last of T5/T7 |
 
