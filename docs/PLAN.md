@@ -958,7 +958,7 @@ Reader mode is **on whenever the Setup screen is RESUMED and NFC is ENABLED**; t
 
 ---
 
-### T8 — Hardening, docs, final verification · status: `todo`
+### T8 — Hardening, docs, final verification · status: `in-progress`
 **Goal:** No leftovers, a full E2E matrix, user documentation.
 **Owns:** `README.md`, `docs/MANUAL_CHECKS.md`, PLAN.md status updates, any E2E scenario from §2.2 still missing. A production fix found here goes back to the owning layer's task as a review-cycle item.
 **Depends on:** T2–T7.
@@ -970,6 +970,57 @@ Reader mode is **on whenever the Setup screen is RESUMED and NFC is ENABLED**; t
 
 **Acceptance criteria:** the audit is clean; the README covers every permission and command; all tasks are `done`.
 **Test strategy:** the full suite; the audit.
+
+#### Refinement notes (T8)
+
+*Ownership (orchestrator decision): all layer tasks are closed, so T8 makes the cross-cutting production fixes below directly in any package (frozen/T1 files only if strictly needed), keeping each change minimal and §2.1-compliant.*
+
+##### H1. DataStore subscribe race — shared mitigation (new **D-48**)
+
+* **Bug:** with DataStore 1.2.1 (latest stable), a long-lived `data` collector can permanently miss a write that lands between its subscription and its first emission (reviewer: 134/1000 on a fresh store, 16/1000 after a prior `first()`, 0/1000 once the collector has its first value). A fresh `data.first()` always sees the write. Likely cause: the collector's start state is read without the lock and later cache updates are dropped by version, so the missed value only reappears on the *next* write.
+* **Mitigation (one file, new package `datastore`):** `app/src/main/java/.../datastore/ConsistentData.kt`
+  ```kotlin
+  /** `data`, plus one fresh read after the first emission (D-48); duplicates are dropped. */
+  fun <T> DataStore<T>.consistentData(): Flow<T> = flow {
+      var rechecked = false
+      data.collect { value ->
+          emit(value)
+          if (!rechecked) { rechecked = true; emit(data.first()) }
+      }
+  }.distinctUntilChanged()
+  ```
+  Why it is safe: the re-read runs *inside* the upstream's first `emit`, so the upstream can't advance until it returns; writes before the re-read are in `first()`, writes after it are delivered by the collector (the 0/1000 case), and the collector's next value comes from the in-memory cache's current state, which is at least as new as the re-read (no regression to an older value). No `buffer`/`flowOn` is inserted before the re-read. A read error from `first()` propagates like any `data` error, so the stores' existing `retryWhen`/`catch` still apply.
+* **Applied at every long-lived exposure** (replacing `dataStore.data`, operators after it unchanged): `FocusStateStore.snapshot` (→ `state`, used by ForegroundAppGuard, BlockingActivity.finishWhenFree, FocusStartHook, Status VM, FocusStatsSource), `BlockListStore.blockedPackages`, `TagPairingStore.pairings` (Start/Setup/validation), `DataStoreGrayscaleFallbackSettings.enabled`. `DaltonizerSnapshotStore` only uses `first()` (unaffected). Grep check: no other `.data` use in main code.
+* **Tests (`test/.../datastore/ConsistentDataTest.kt`, plain JVM, real file DataStores via `TestDataStores` in a `TemporaryFolder`, each with its own `Job` cancelled per iteration):**
+  1. `consistent data never misses a write racing its first emission`: 300 iterations of a fresh store; launch the collector on `Dispatchers.Default` (into a `MutableStateFlow`), then `edit` immediately from `Dispatchers.IO`; after `edit` returns, wait ≤ 500 ms for the collector to show the value; assert 0 misses. Fast on success (ms per iteration). At 13 % miss rate, 300 runs without a miss by chance is ≈ 1e-19, so a regression can't hide.
+  2. Canary `raw data can miss a write racing its first emission (remove D-48 when this fails)`: same loop on `data`, **stops at the first miss** (≈ 8 attempts expected, ≤ 300), asserts a miss happened. It documents the library bug and tells us when an upgrade fixes it. If it proves flaky in CI it is `@Ignore`d with the measured rate in the comment rather than lengthened.
+  3. Semantics: emits the stored value once (no duplicate from the re-read), then follows later writes in order.
+  * During Implement, also prove test 1 fails when `consistentData()` is swapped for `data` (record the count in the implementation notes).
+* T5's test workaround (store the block list before creating the service, S4) stays: it mirrors real use and is harmless.
+
+##### H2. E2E-6 flake
+
+Expected cause is H1 (the guard's `focus_state` collector missing the FOCUS write right after the service starts). After H1, run `./gradlew :app:testDebugUnitTest --tests 'io.github.fbarcalar.focustag.e2e.*' --tests 'io.github.fbarcalar.focustag.blocker.*' --rerun` **5 times**; all green, else investigate further (guard start vs `scanTag` ordering) before moving on. Record the run count/result.
+
+##### H3. Lint `FieldSiteTargetOnQualifierAnnotation` (`FocusAccessibilityService.kt:22`)
+
+Dagger ≥ 2.25 reads qualifiers from Kotlin property metadata, so drop `@field:` (plain `@ApplicationScope` on the `lateinit var`). Verification: a wrong qualifier would ask for an unqualified `CoroutineScope`, which has no binding → KSP/Hilt **compile error**; plus the blocker service/slice tests and E2E-5/6 (they need the injected scope). If either fails, restore `@field:` with `@Suppress("FieldSiteTargetOnQualifierAnnotation")` and a one-line why-comment, and correct T5's S4 note.
+
+##### H4. Audit (method; findings fixed in place, listed in the implementation notes)
+
+* §2.2: all 13 `e2e/scenarios/E2E{1..13}*Test.kt` exist (checked: present); they pass in the full run and in H2's reruns.
+* `grep -rn Placeholder app/src` → none (checked: none). `grep -rln "import android.nfc" app/src/main` → only `AndroidNfcGateway.kt`, `AndroidNfcGatewayNdef.kt` (checked).
+* §2.1 by grep/scripts over `app/src/{main,test}`: files > 200 lines (found: `test/.../focus/FocusEngineTest.kt` 250 → split by behaviour, e.g. `FocusEngineReconcileTest`); `!!`, `GlobalScope`, `runBlocking` in main (none found); functions ≳ 20 lines (scan for long bodies, spot-review); then a separate reviewer subagent does the qualitative pass.
+* Lint: read `app/build/reports/lint-results-debug.txt` after the full run; the only warnings left must be the accepted ones (`NewerVersionAvailable`/`GradleDependency`/`AndroidGradlePluginVersion` per D-02, `UnnecessaryRequiredFeature` for NFC). Anything else is fixed or justified in the notes.
+* Final: `./gradlew assembleDebug lint test` green.
+
+##### H5. `README.md` (replaces the stub; every claim checked against code/strings)
+
+What it is (NFC-gated focus mode: Tag A desk → FOCUS with DND+grayscale mode and app blocking; Tag B living room → FREE; no in-app exit) · Requirements (Android 15+ for DND/grayscale; minSdk 33; NFC) · Build (`scripts/setup-android-sdk.sh`, then `./gradlew assembleDebug`, `./gradlew lint`, `./gradlew test`; JDK 21) · Install (`adb install -r app/build/outputs/apk/debug/app-debug.apk`) · Permission walkthrough in order, with the Setup row titles as they appear: (1) App info → ⋮ → *Allow restricted settings*, then Accessibility service; (2) Do Not Disturb access; (3) Notifications; (4) battery optimisation exemption; (5) optional `adb shell pm grant io.github.fbarcalar.focustag android.permission.WRITE_SECURE_SETTINGS` + the "Grayscale fallback" switch (applies on next focus start/app restart) · Pairing tags (NTAG213/215/216, D-16; Setup writes `focustag://toggle/<uuid>` + AAR; an unformatted tag asks "Tap it again to finish"; scans don't toggle focus while Setup is open; UID-bound, so copies are ignored) · Daily use (scan with the phone unlocked; toast; notification; Status timers; Setup is read-only for removals/reset in FOCUS) · Manual checks → `docs/MANUAL_CHECKS.md` · Known limitations (out-of-app escapes D-46 shown in the Status banner; QS/Modes switch-off re-assertion depends on MC-07; alarms allowed; API < 35 no zen/grayscale; locked phone ignores scans; DataStore race mitigated, D-48).
+
+##### H6. `docs/MANUAL_CHECKS.md`
+
+Header (device, Android build, app commit, date, tester). One section per check MC-01…MC-12 from §5, each a table `# | Step | Expected | Result (pass/fail/notes)` with numbered steps and preconditions (tags paired, permissions granted). Additions from task notes: MC-01 first tap on an unformatted tag asks to tap again, and scans while Setup is open do nothing (P3); MC-02 the toast shows and there is no visible flicker or delay (N5); MC-05 previous colour-correction values restored exactly; MC-06 alarm still rings; MC-07 record both the `activate()` outcome (Status degraded or not) **and** the actual mode state (QS tile, DND icon, grayscale), plus whether a gap appears after the process is killed (F9 manifest-receiver note); MC-10 each Setup row's intent opens the right screen; new **MC-13** TalkBack reads the mode and timers as words ("1 hour, 5 minutes") and the banner as one button; **MC-14** NFC off → Setup shows the NFC prompt and its button opens NFC settings. A summary table at the top (ID, title, result).
 
 ## 4. Parallel groups
 
