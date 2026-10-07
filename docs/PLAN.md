@@ -729,7 +729,7 @@ The three `Placeholder*` files are deleted.
 
 ---
 
-### T6 — Status screen · status: `todo`
+### T6 — Status screen · status: `in-progress`
 **Goal:** Clear FOCUS / FREE TIME display with timers, hint and a permission warning, and no way to exit.
 **Owns:** `ui/status/**`, `res/values/strings_status.xml`, `test/.../ui/status/**`.
 **Depends on:** T1 (contracts), merged after T2 & T4 so it runs against real bindings. **Decisions:** D-45, D-46.
@@ -740,6 +740,48 @@ The three `Placeholder*` files are deleted.
 
 **Acceptance criteria:** the UI matches state within 1 s; banner appears/disappears with permission changes; no button or gesture changes the mode; timers survive configuration change.
 **Test strategy:** ViewModel unit tests with fakes + Turbine; Compose UI tests (Robolectric) for both modes, banner on/off, and an assertion that no clickable node changes the mode.
+
+#### Refinement notes (T6)
+
+##### U1. Classes (package `ui.status`, all `internal` except the frozen entry point; every file ≤ 200 lines)
+
+| File | Responsibility / signature |
+|------|----------------------------|
+| `StatusUiState.kt` | `sealed interface StatusUiState { data object Loading; data class Ready(val mode: FocusMode, val currentSession: Duration, val todayTotal: Duration, val missingPermissions: List<PermissionItem>, val failedEffects: Set<Effect>) }` plus the pure mapper `fun statusUiState(state: FocusState, stats: FocusStats, effects: EffectsStatus, items: List<PermissionItem>): StatusUiState.Ready`. `missingPermissions = items.missingRequired` (the contract helper; items are kept, not ids, because T1's `PermissionBanner` takes `List<PermissionItem>`; so `UNSUPPORTED` below API 35 and the non-required items never raise the banner). `failedEffects = effects.failed` **only in FOCUS**, empty in FREE: in FREE nothing should be on, and T4 reports `deactivate()` without DND access as failed (S5), which would be a false "not applied" warning; the permission banner already covers that case. `Loading` avoids a flash of "FREE TIME" before the store's first read (same idea as `StartDestination.Loading`). |
+| `StatusViewModel.kt` | `@HiltViewModel class StatusViewModel @Inject constructor(reader: FocusStateReader, permissions: PermissionChecker) : ViewModel()`. `val uiState: StateFlow<StatusUiState> = combine(reader.state, reader.stats, reader.effectsStatus, permissions.items, ::statusUiState).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), Loading)`. `fun onResume() = permissions.refresh()`. No mode-changing dependency: `FocusController` is not injected (D-45 by construction). `WhileSubscribed(5 s)` keeps the upstream alive across a rotation; the timers are anyway derived from the persisted `since` by T2, so they survive configuration change and process death without any UI state. |
+| `StatusDestination.kt` | Frozen `StatusDestination(onOpenSetup)`, `// PLACEHOLDER(T6)` body replaced: `hiltViewModel<StatusViewModel>()`, `collectAsStateWithLifecycle()`, `LifecycleResumeEffect(Unit) { viewModel.onResume(); onPauseOrDispose {} }` (subtask 1, "refresh on resume"), then `StatusScreen(state, onOpenSetup)`. |
+| `StatusScreen.kt` | Stateless `StatusScreen(state: StatusUiState, onOpenSetup: () -> Unit, modifier)`: `Scaffold` + `TopAppBar` (app name, Settings icon with the existing `R.string.action_open_setup` description, which `NavigationTest` relies on). Body: `Loading` → empty; `Ready` → a `verticalScroll` `Column` (so 200 % font scale never clips): `StatusWarnings`, `ModeIndicator`, `SessionTimers`, `ModeHint`. The screen has a single event, so it takes `onOpenSetup` instead of a one-case `onEvent` (KISS). |
+| `StatusSections.kt` | `ModeIndicator(mode)`: full-width rounded `Surface`, `primaryContainer` in FOCUS / `surfaceVariant` in FREE, text "FOCUS" / "FREE TIME" in `displayMedium`; the text, not only the colour, carries the mode. Semantics: `heading()` + `liveRegion = Polite`, so TalkBack announces a mode change while the screen is open. `SessionTimers(mode, currentSession, todayTotal)`: "Current session" (FOCUS only) and "Today" rows, values in `headlineLarge` with tabular digits (`fontFeatureSettings = "tnum"`) so the ticking digits don't jitter. `ModeHint(mode)`: "Scan the living-room tag to exit" / "Scan the desk tag to focus". No clickable modifiers and no gesture detectors in this file. |
+| `StatusWarnings.kt` | `StatusWarnings(missing: List<PermissionItem>, failedEffects: Set<Effect>, onOpenSetup)`: (1) T1's `PermissionBanner(missing, onClick = onOpenSetup)` as-is (count + "Tap to fix in Setup"); (2) directly under it, in the same error-container colour and also tapping to Setup, a line naming them ("Missing: Do Not Disturb access, Accessibility service"; names in `strings_status.xml`, one per `PermissionId`, exhaustive `when`); (3) when `failedEffects` is non-empty, a notice "Do Not Disturb and grayscale are not active" (ZEN_RULE) / "Grayscale fallback could not be applied" (GRAYSCALE_FALLBACK), tapping to Setup (D-46: escapes are shown, not prevented). Each tappable surface has `Role.Button` and an `onClickLabel` ("Open setup"). T1's shell only prints a count; extending it to list names would be a T1 edit, so the names line lives here. |
+| `DurationFormat.kt` | Pure `fun formatClock(d: Duration): String` → `"%02d:%02d:%02d"` from `d.coerceAtLeast(ZERO)` with **total** hours (25 h → `25:00:00`; sub-second truncated). Composable `spokenDuration(d)` builds the TalkBack text from plurals ("1 hour, 5 minutes", seconds only under one minute), set as the timer's `contentDescription`, because "01:05:03" is read as a time of day. |
+| `StatusPreviews.kt` | `@Preview`s (light + dark via `uiMode`) for Loading, FREE healthy, FOCUS healthy, FOCUS with two missing permissions and ZEN_RULE failed, FOCUS at `fontScale = 2f`. Kept apart so the screen files stay small. |
+| `res/values/strings_status.xml` | mode labels, timer labels, hints, effect notices, permission names, `plurals` for spoken hours/minutes/seconds, "Missing: %1$s". |
+
+##### U2. Behaviour details
+
+* **Within 1 s (AC):** T2's stats flow ticks every second in FOCUS from the injected `Clock`; the VM adds no delay or sampling. The mode comes from `state`, the timers from `stats`; both are fed by the same store snapshot, so after a scan they agree on the next emission.
+* **No exit (D-45):** the only clickable nodes are the Settings icon, the permission banner/name line and the effects notice, and all of them call `onOpenSetup`. No `pointerInput`, `swipeable` or back handler on the screen.
+* **Banner:** appears/disappears with `PermissionChecker.items`, which T4 updates live (NFC flow, DND broadcast, accessibility observer) and on every `refresh()` from ON_RESUME.
+
+##### U3. Tests (`test/.../ui/status/**`)
+
+* **JVM `StatusUiStateTest`** (pure mapper): FREE → mode FREE, session ZERO passthrough; FOCUS carries the stats; only required MISSING items are listed (UNSUPPORTED and non-required MISSING are not); failed effects shown in FOCUS, hidden in FREE; healthy → empty sets.
+* **JVM `DurationFormatTest`:** ZERO → `00:00:00`; 59 s; 1 h 5 min 3 s → `01:05:03`; 25 h → `25:00:00`; 999 ms truncated; negative → `00:00:00`.
+* **JVM `StatusViewModelTest`** (`MainDispatcherRule`, Turbine, `FakeFocusEngine`, `FakePermissionChecker`): `uiState.value` is `Loading` before any collector; the first collected state is `Ready(FREE)`; FREE → FOCUS → FREE updates the mode; a stats emission updates the timers; a permission revoked/re-granted adds/removes the item; `effectsStatus` degraded in FOCUS shows the effects; `onResume()` calls `refresh()` exactly once.
+* **Robolectric Compose `StatusScreenTest`** (`createComposeRule` v2, stateless screen, `waitForIdle`): FOCUS shows "FOCUS", the session and today timers and the exit hint, and not the desk hint; FREE shows "FREE TIME", today's total, the desk hint and no session timer; Loading shows neither mode label; banner + names shown when permissions are missing, absent otherwise; the effects notice shows in FOCUS degraded; clicking the banner calls `onOpenSetup`; **every node with a click action calls `onOpenSetup` and nothing else exists to click** (`onAllNodes(hasClickAction())`: click each, counter == node count, and the set is exactly {Settings, banner, names line, notice}); the mode label is a heading with a polite live region; at `DeviceConfigurationOverride.FontScale(2f)` the today timer is still reachable (`performScrollTo().assertIsDisplayed()`); the timer has the spoken content description.
+* **Robolectric Hilt `StatusConfigurationChangeTest`** (extends `FocusTagE2E` as a Hilt base, like T2's `BootReceiverTest`; real graph): paired, `scanTagDirect(ACTIVATE)`, `advanceClock(10.minutes)`, `ActivityScenario.launch(MainActivity)` (its own handle, because the harness keeps its scenarios private; closed in `@After`), timer `00:10:00`; `scenario.recreate()` → still "FOCUS" and `00:10:00` (AC "timers survive configuration change").
+
+##### U4. Cross-layer E2E written by T6 at Integrate (T2, T3, T4 are merged, so both sets are complete). One file each in `e2e/scenarios/`:
+
+* **`E2E11StatusReflectsScansTest`** (E2E-11, T2+T3+T6): `pairTags()`, `grant` NOTIFICATION_POLICY, POST_NOTIFICATIONS, ACCESSIBILITY_SERVICE (NFC is ENABLED by default) → `openMainUi()` → wait for "FREE TIME", no banner. `scanTag(ACTIVATE)` (real `NfcTriggerActivity` path) → "FOCUS" + exit hint within the harness timeout; `advanceClock(25.minutes)` → session `00:25:00` on screen; `scanTag(DEACTIVATE)` → "FREE TIME", today `00:25:00`, no session timer. Then the no-exit check on the real screen: every clickable node is a Setup entry (`hasClickAction()` count equals the Settings icon only, since no banner is shown) and the mode is unchanged.
+* **`E2E9DndRevokedMidSessionTest`** (E2E-9, T2+T4+T6): all grants, `pairTags()`, `openMainUi()`, `scanTag(ACTIVATE)`, `assertZenRuleActive(true)`, "FOCUS" with no warnings. Wait until T2's zen receiver is registered (F4; the same `registeredReceivers` check as E2E-10, copied locally because it is private there). Act: `revoke(NOTIFICATION_POLICY)` (shadow + `refresh()`), then send `ACTION_NOTIFICATION_POLICY_ACCESS_GRANTED_CHANGED` to our package, as the OS does on revocation (the shadow sends no broadcasts, S1) → T2 reconciles. Assert: no crash, `assertMode(FOCUS)`, `assertEffectsDegraded(true)`, the screen still shows "FOCUS", the banner (count 1) and the name "Do Not Disturb access", and the effects notice. Second test (same file, MC-10 "re-granting restores"): after the revoke, `grant(NOTIFICATION_POLICY)` + the same broadcast → `assertEffectsDegraded(false)`, banner and notice gone, `assertZenRuleActive(true)`.
+* Both update the §2.2 "Written by" column to **T6** with the file names.
+
+##### U5. Risks / open questions
+
+* `scanTag` launches `NfcTriggerActivity` while `MainActivity` is resumed; the empty compose rule should keep finding `MainActivity`'s hierarchy (the trigger activity has no Compose content and finishes). If not, E2E-11 falls back to waiting on `focusStateReader` first and then re-querying the UI.
+* T7 may also name permissions in `strings_setup.xml`; duplicate wording across two owned files is accepted over a shared T1 resource (which would need a T1 edit).
+* `LifecycleResumeEffect` calls `refresh()` also on the first composition; `refresh()` is cheap and synchronous (S2), so no guard.
 
 ---
 
