@@ -707,7 +707,7 @@ The three `Placeholder*` files are deleted.
 * Test-only helpers: `system/zen/ZenTestSupport` (OS-side rule access plus the shadow's state-map read for the same-instance checks) and `system/grayscale/SystemStoreRule` (a temp-dir DataStore that can be closed and reopened to simulate process death).
 * `AndroidPermissionChecker` builds the `PermissionAction`s once. `Intent` has no structural `equals`, so fresh intents would turn every `refresh()` into a new `StateFlow` emission.
 * `SystemFocusEffects.enable()` applies the fallback before the zen rule. The order has no observable effect.
-* **Not done from S6:** (1) The "access revoked between the check and the call" test is dropped. The shadow uses one flag for both the check and the enforcement, so the race can't be reproduced without mocks. The `catch` is a single line in `whenAccessible`. (2) There are no `ShadowPackageManager` resolution assertions for the intents: registering an activity for each intent only to resolve it again proves nothing. Intents are checked field by field, and real resolution is MC-10/T7.
+* **Not done from S6:** there are no `ShadowPackageManager` resolution assertions for the intents: registering an activity for each intent only to resolve it again proves nothing. Intents are checked field by field, and real resolution is MC-10/T7. The revocation race *is* tested (`ZenRuleControllerRevocationTest`, a custom shadow that reports access as granted while `getAutomaticZenRules` throws). `ZenRuleController` is stateless and isn't a `@Singleton`; `SystemFocusEffects` holds the mutex.
 * **For integration:** E2E-7 must build its leftover rule with `ZenRuleSpec(app).newRule()` (condition id `focustag://zen/focus`, config activity in our package), or the controller won't adopt it. The DND-access broadcast and the accessibility observer are owned by `PermissionChangeSignals`. T2 needs only the zen broadcasts for D-34.
 
 ---
@@ -790,7 +790,7 @@ Cross-layer E2E scenarios (§2.2) are written during each merge, so every group 
 * **MC-04** In FOCUS: open each blocked app from the launcher, recents, a notification and split-screen → blocking screen, then home. Phone, launcher, Settings and FocusTag stay usable.
 * **MC-05** Grayscale is visibly applied in FOCUS and removed in FREE (zen rule). Repeat with the secure-settings fallback toggle on, and confirm the previous colour-correction settings are restored.
 * **MC-06** DND: send a test notification and a call from a non-starred contact in FOCUS → suppressed; FREE → delivered. An alarm set for one minute later still rings in FOCUS.
-* **MC-07** In FOCUS, turn the mode off from Quick Settings / Settings → Modes → the app re-asserts it (D-34); record the result.
+* **MC-07** In FOCUS, turn the mode off from Quick Settings / Settings → Modes → the app re-asserts it (D-34). Record both the `activate()` outcome (Status degraded or not) **and** whether the mode is actually back on (Quick Settings tile, DND icon, grayscale). Android may report the raw TRUE condition while a user override keeps the mode off, so the outcome alone isn't enough.
 * **MC-08** In FOCUS, reboot the phone; after unlock, FOCUS, DND, grayscale and blocking are all active and the timers continue.
 * **MC-09** Force-stop the app in FOCUS → after any tag scan or app launch, state and effects are consistent; the accessibility service re-binds.
 * **MC-10** Revoke DND access / disable the accessibility service mid-session → no crash; the Status banner shows it; re-granting restores effects.

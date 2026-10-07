@@ -9,7 +9,6 @@ import androidx.annotation.RequiresApi
 import dagger.hilt.android.qualifiers.ApplicationContext
 import io.github.fbarcalar.focustag.di.IoDispatcher
 import javax.inject.Inject
-import javax.inject.Singleton
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.withContext
 
@@ -29,7 +28,6 @@ sealed interface ZenOutcome {
 }
 
 /** Owns our single AutomaticZenRule: adopt or create it, dedupe it, and switch it (D-30, D-34, D-35). */
-@Singleton
 class ZenRuleController @Inject constructor(
     @ApplicationContext context: Context,
     private val spec: ZenRuleSpec,
