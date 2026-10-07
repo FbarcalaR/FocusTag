@@ -954,6 +954,7 @@ Reader mode is **on whenever the Setup screen is RESUMED and NFC is ENABLED**; t
 * The pairing VM tests share `TagPairingFixture` and are split into `TagPairingViewModelTest` (writes, results) and `TagPairingSessionTest` (dismiss, timeout, NFC, FOCUS gating) to respect the file-size limit. They reuse T3's test fake `nfc/InMemoryPairingRepository` (read-only use).
 * E2E-12 is `e2e/scenarios/E2E12SetupPairingTest.kt`.
 * **Integrate (as built):** rebased on T1–T6 (clean). Checked against the real T5 `BlockListStore`/`InstalledAppsRepository` and T6's Status screen (its top-bar Settings icon still carries `action_open_setup`, so E2E-12's Status marker holds). E2E-13 is `e2e/scenarios/E2E13BlockListRemovalGatedTest.kt`: a launcher app registered in `ShadowPackageManager` is blocked through the Setup UI in FREE; in FOCUS its row is checked and disabled, a tap changes nothing, and `openApp` still shows the blocking screen; back in FREE, unchecking removes it. Lazy-list scrolling in tests targets `hasScrollToIndexAction()`, because the search field is a second scrollable node.
+* **Flake found and fixed at Integrate:** under Robolectric (not in touch mode) the window sometimes gives initial focus to the search field, and the list scrolls to the bottom, so a wait for the "Tags" header timed out. Tests now detect Setup by its top-bar title (`title_setup`). On the Pixel (touch mode) there is no initial focus, so the app itself is unchanged.
 
 ---
 

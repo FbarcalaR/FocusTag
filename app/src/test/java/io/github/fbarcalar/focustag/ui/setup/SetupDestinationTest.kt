@@ -69,7 +69,7 @@ class SetupDestinationTest {
     @Test
     fun `reader mode is on while setup is shown and off once the activity is gone`() {
         launch()
-        awaitText(R.string.setup_tags_title)
+        awaitText(R.string.title_setup)
         val whileShown = gateway.readerModeEnabled
 
         scenario.close()
@@ -88,7 +88,7 @@ class SetupDestinationTest {
         val openSetup = app.getString(R.string.action_open_setup)
         composeRule.waitUntilAtLeastOneExists(hasContentDescription(openSetup), TIMEOUT_MILLIS)
         composeRule.onNodeWithContentDescription(openSetup).performClick()
-        awaitText(R.string.setup_tags_title)
+        awaitText(R.string.title_setup)
         val whileShown = gateway.readerModeEnabled
 
         composeRule.onNodeWithContentDescription(app.getString(R.string.action_back)).performClick()
@@ -102,7 +102,7 @@ class SetupDestinationTest {
     fun `returning to setup re-checks the permissions`() {
         shadowOf(app).denyPermissions(Manifest.permission.POST_NOTIFICATIONS)
         launch()
-        awaitText(R.string.setup_tags_title)
+        awaitText(R.string.title_setup)
         val allow = hasText(app.getString(R.string.setup_permission_allow))
         composeRule.onNode(hasScrollToIndexAction()).performScrollToNode(allow)
         shadowOf(app).grantPermissions(Manifest.permission.POST_NOTIFICATIONS)

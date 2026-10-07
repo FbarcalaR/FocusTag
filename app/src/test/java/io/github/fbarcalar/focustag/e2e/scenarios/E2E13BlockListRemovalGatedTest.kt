@@ -83,7 +83,7 @@ class E2E13BlockListRemovalGatedTest : FocusTagE2E() {
         val openSetup = hasContentDescription(text(R.string.action_open_setup))
         composeRule.waitUntilAtLeastOneExists(openSetup, TIMEOUT_MILLIS)
         composeRule.onNode(openSetup).performClick()
-        composeRule.waitUntilAtLeastOneExists(hasText(text(R.string.setup_tags_title)), TIMEOUT_MILLIS)
+        composeRule.waitUntilAtLeastOneExists(hasText(text(R.string.title_setup)), TIMEOUT_MILLIS)
     }
 
     private fun installLauncherApp(packageName: String, label: String) {

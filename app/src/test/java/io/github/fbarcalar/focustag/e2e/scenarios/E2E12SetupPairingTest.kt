@@ -37,7 +37,7 @@ class E2E12SetupPairingTest : FocusTagE2E() {
     @Test
     fun `pairing tag A then tag B on setup routes to status without toggling focus`() {
         openMainUi()
-        awaitText(R.string.setup_tags_title)
+        awaitText(R.string.title_setup)
 
         pairThroughUi(HarnessTags.A.uidHex)
         awaitText(R.string.setup_pairing_ok)
@@ -46,7 +46,7 @@ class E2E12SetupPairingTest : FocusTagE2E() {
         pairThroughUi(HarnessTags.B.uidHex)
 
         composeRule.waitUntilAtLeastOneExists(hasContentDescription(text(R.string.action_open_setup)), TIMEOUT_MILLIS)
-        composeRule.onNodeWithText(text(R.string.setup_tags_title)).assertDoesNotExist()
+        composeRule.onNodeWithText(text(R.string.title_setup)).assertDoesNotExist()
         eventually {
             val pairings = graph.pairingRepository().pairings.first()
             assertThat(pairings.mapValues { it.value.uidHex })
@@ -92,7 +92,7 @@ class E2E12SetupPairingTest : FocusTagE2E() {
         val openSetup = hasContentDescription(text(R.string.action_open_setup))
         composeRule.waitUntilAtLeastOneExists(openSetup, TIMEOUT_MILLIS)
         composeRule.onNode(openSetup).performClick()
-        awaitText(R.string.setup_tags_title)
+        awaitText(R.string.title_setup)
     }
 
     private fun awaitText(id: Int) = composeRule.waitUntilAtLeastOneExists(hasText(text(id)), TIMEOUT_MILLIS)
