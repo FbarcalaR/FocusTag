@@ -4,7 +4,7 @@ import android.Manifest
 import android.app.Application
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.hasContentDescription
-import androidx.compose.ui.test.hasScrollAction
+import androidx.compose.ui.test.hasScrollToIndexAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createEmptyComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -104,7 +104,7 @@ class SetupDestinationTest {
         launch()
         awaitText(R.string.setup_tags_title)
         val allow = hasText(app.getString(R.string.setup_permission_allow))
-        composeRule.onNode(hasScrollAction()).performScrollToNode(allow)
+        composeRule.onNode(hasScrollToIndexAction()).performScrollToNode(allow)
         shadowOf(app).grantPermissions(Manifest.permission.POST_NOTIFICATIONS)
 
         scenario.moveToState(Lifecycle.State.STARTED)
