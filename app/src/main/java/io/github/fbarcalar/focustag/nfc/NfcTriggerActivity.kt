@@ -25,7 +25,7 @@ class NfcTriggerActivity : ComponentActivity() {
     lateinit var processor: TagScanProcessor
 
     @Inject
-    @field:ApplicationScope
+    @ApplicationScope
     lateinit var appScope: CoroutineScope
 
     override fun onCreate(savedInstanceState: Bundle?) {

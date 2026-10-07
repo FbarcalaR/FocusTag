@@ -532,7 +532,7 @@ Cross-layer scenarios E2E-1…13 aren't T2's (T2 merges first in G2); later merg
 
 ---
 
-### T3 — NFC layer: gateway, validation, pairing, tag writing, background trigger · status: `in-progress`
+### T3 — NFC layer: gateway, validation, pairing, tag writing, background trigger · status: `review`
 **Goal:** Tags can be paired/written, and scans with the app closed are validated and forwarded to the engine.
 **Owns:** `nfc/**` except `Contracts.kt` (incl. `nfc/di/NfcModule.kt`, `nfc/NfcTriggerActivity.kt`), `res/values/strings_nfc.xml`, `test/.../nfc/**`.
 **Depends on:** T1. **Decisions:** D-10–D-16.
