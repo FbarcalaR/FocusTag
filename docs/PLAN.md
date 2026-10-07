@@ -942,6 +942,7 @@ Reader mode is **on whenever the Setup screen is RESUMED and NFC is ENABLED**; t
 * T6 runs concurrently: E2E-12 asserts Status through the T1 string `action_open_setup` as a content description (top-bar Settings icon, which T6 is expected to keep per T1 R4); adjust at Integrate if T6 changes it. *Plan review: **accepted**: it is the one stable, user-visible marker of Status that both the placeholder and T6 share.*
 * Re-dispatch of a tag still in the field after reader mode is disabled (the P3 rationale) is platform behaviour; MC-01 covers it on the Pixel.
 * T5 not merged: Block-list VM/UI tests use T7 fakes; the real source's icon loading/perf is checked at Integrate (E2E-13).
+* Process death while pairing: the pairing session lives only in the ViewModel, so Setup reopens Idle. A write that finished without its `save` leaves a tag carrying an unpaired id (ignored on scan, D-12); the user simply pairs again. A completed `save` is already persisted.
 
 ##### P9. Implementation notes (T7, as built)
 

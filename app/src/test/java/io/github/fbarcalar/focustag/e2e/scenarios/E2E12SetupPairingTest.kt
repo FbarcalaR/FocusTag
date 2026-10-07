@@ -1,11 +1,13 @@
 package io.github.fbarcalar.focustag.e2e.scenarios
 
 import androidx.compose.ui.test.ExperimentalTestApi
-import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertAll
-import androidx.compose.ui.test.isNotEnabled
+import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.isDialog
+import androidx.compose.ui.test.isNotEnabled
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
@@ -74,7 +76,7 @@ class E2E12SetupPairingTest : FocusTagE2E() {
         assertMode(FocusMode.FREE)
         openSetup()
         composeRule.onAllNodesWithText(text(R.string.setup_tag_reset))[0].performScrollTo().assertIsEnabled().performClick()
-        composeRule.onAllNodesWithText(text(R.string.setup_reset_confirm))[2].performClick()
+        composeRule.onNode(hasText(text(R.string.setup_reset_confirm)) and hasAnyAncestor(isDialog())).performClick()
 
         eventually { assertThat(graph.pairingRepository().pairings.first().keys).containsExactly(TagRole.DEACTIVATE) }
     }
@@ -96,6 +98,7 @@ class E2E12SetupPairingTest : FocusTagE2E() {
     private fun awaitText(id: Int) = composeRule.waitUntilAtLeastOneExists(hasText(text(id)), TIMEOUT_MILLIS)
 
     private companion object {
-        const val TIMEOUT_MILLIS = 5_000L
+        // Generous: the first composition in a cold, loaded test JVM can take several seconds.
+        const val TIMEOUT_MILLIS = 15_000L
     }
 }
