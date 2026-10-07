@@ -713,7 +713,7 @@ The three `Placeholder*` files are deleted.
 
 ---
 
-### T5 — Blocker: decision logic, accessibility service, blocking screen, app list · status: `review`
+### T5 — Blocker: decision logic, accessibility service, blocking screen, app list · status: `done`
 **Goal:** While FOCUS, opening a blocked app immediately shows a blocking screen and returns the user home.
 **Owns:** `blocker/**` except `Contracts.kt` (incl. `blocker/di/BlockerModule.kt`, `FocusAccessibilityService.kt`, `BlockingActivity.kt`, `ui` of the blocking screen inside `blocker/ui/`), `res/values/strings_blocker.xml`, `test/.../blocker/**`.
 **Depends on:** T1. **Decisions:** D-20–D-25.

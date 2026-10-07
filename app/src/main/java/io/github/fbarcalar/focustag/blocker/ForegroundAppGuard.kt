@@ -9,6 +9,7 @@ import java.util.concurrent.Executor
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
@@ -37,7 +38,7 @@ class ForegroundAppGuard @AssistedInject constructor(
      */
     fun start(scope: CoroutineScope, mainThread: Executor): Job =
         combine(focusState.state.map { it.mode }, blockList.blockedPackages, ::Inputs)
-            .onEach { newInputs -> mainThread.execute { onInputs(newInputs) } }
+            .onEach { newInputs -> mainThread.execute { if (scope.isActive) onInputs(newInputs) } }
             .launchIn(scope)
 
     /** The user now sees [packages]; an empty list carries no information and is ignored. */
