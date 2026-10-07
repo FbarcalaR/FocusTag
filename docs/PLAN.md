@@ -849,7 +849,7 @@ Android assumptions: the system binds the service with `BIND_ACCESSIBILITY_SERVI
 
 ---
 
-### T7 — Setup screen · status: `in-progress`
+### T7 — Setup screen · status: `review`
 **Goal:** Pair/re-pair/reset tags, pick blocked apps, see and fix permissions.
 **Owns:** `ui/setup/**`, `res/values/strings_setup.xml`, `test/.../ui/setup/**`.
 **Depends on:** T1 (contracts), merged after T3, T4, T5. **Decisions:** D-14, D-25, D-33, D-45.
@@ -942,6 +942,16 @@ Reader mode is **on whenever the Setup screen is RESUMED and NFC is ENABLED**; t
 * T6 runs concurrently: E2E-12 asserts Status through the T1 string `action_open_setup` as a content description (top-bar Settings icon, which T6 is expected to keep per T1 R4); adjust at Integrate if T6 changes it. *Plan review: **accepted**: it is the one stable, user-visible marker of Status that both the placeholder and T6 share.*
 * Re-dispatch of a tag still in the field after reader mode is disabled (the P3 rationale) is platform behaviour; MC-01 covers it on the Pixel.
 * T5 not merged: Block-list VM/UI tests use T7 fakes; the real source's icon loading/perf is checked at Integrate (E2E-13).
+
+##### P9. Implementation notes (T7, as built)
+
+* Events are one small sealed type per section (`TagEvent`, `PermissionEvent`, `BlockListEvent`); `SetupScreen(sections: SetupSections, onBack)` takes them bundled with the three states so its signature stays short. The NFC-off button launches the `NFC_ENABLED` checklist item's action (one source for the intent).
+* `TagPairingViewModel.onTagDiscovered` is `internal` so the JVM tests drive the state machine without an `Activity`; the gateway delegation is covered by `SetupDestinationTest` and E2E-12 through `FakeNfcGateway`.
+* The status chip is one label per (required/optional × status), e.g. "Required · Missing", instead of two chips.
+* `SetupDestinationTest` doesn't `@BindValue` a `FakePermissionChecker` (that needs `@UninstallModules(SystemModule)`, which also removes T4's other bindings). It proves the ON_RESUME re-check with the real checker instead: deny `POST_NOTIFICATIONS`, grant it, pause/resume → the row's "Allow" button disappears.
+* Robolectric's default screen is 320×470 px, so UI tests and E2E-12 `performScrollTo()` before clicking anything below the first card.
+* The pairing VM tests share `TagPairingFixture` and are split into `TagPairingViewModelTest` (writes, results) and `TagPairingSessionTest` (dismiss, timeout, NFC, FOCUS gating) to respect the file-size limit. They reuse T3's test fake `nfc/InMemoryPairingRepository` (read-only use).
+* E2E-12 is `e2e/scenarios/E2E12SetupPairingTest.kt`. E2E-13 is not written yet (T5 not merged); the spec in P7 stands for whichever of T5/T7 merges last.
 
 ---
 
