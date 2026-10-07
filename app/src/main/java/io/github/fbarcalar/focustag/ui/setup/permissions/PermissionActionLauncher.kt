@@ -11,6 +11,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import io.github.fbarcalar.focustag.system.PermissionAction
@@ -24,12 +25,15 @@ fun rememberPermissionActionLauncher(onResult: () -> Unit): (PermissionAction) -
     val context = LocalContext.current
     val activity = LocalActivity.current
     val currentOnResult by rememberUpdatedState(onResult)
-    var pending by remember { mutableStateOf<PermissionAction.RequestRuntime?>(null) }
+    // Saveable: the result can arrive in a re-created activity after the permission dialog.
+    var pendingPermission by rememberSaveable { mutableStateOf<String?>(null) }
+    var pendingSettings by rememberSaveable { mutableStateOf<Intent?>(null) }
     val runtime = rememberLauncherForActivityResult(RequestPermission()) { granted ->
-        val request = pending
+        val permission = pendingPermission
+        val settings = pendingSettings
         // The dialog no longer shows after repeated denials; the app's settings page is the way left.
-        if (!granted && request != null && activity?.shouldShowRequestPermissionRationale(request.permission) == false) {
-            context.startFirstResolvable(listOf(request.settingsIntent))
+        if (!granted && permission != null && settings != null && activity?.shouldShowRequestPermissionRationale(permission) == false) {
+            context.startFirstResolvable(listOf(settings))
         }
         currentOnResult()
     }
@@ -38,7 +42,8 @@ fun rememberPermissionActionLauncher(onResult: () -> Unit): (PermissionAction) -
             when (action) {
                 is PermissionAction.OpenSettings -> context.startFirstResolvable(action.intents)
                 is PermissionAction.RequestRuntime -> {
-                    pending = action
+                    pendingPermission = action.permission
+                    pendingSettings = action.settingsIntent
                     runtime.launch(action.permission)
                 }
                 is PermissionAction.AdbGrant -> Unit

@@ -11,6 +11,7 @@ import androidx.activity.result.ActivityResultRegistry
 import androidx.activity.result.ActivityResultRegistryOwner
 import androidx.activity.result.contract.ActivityResultContract
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.test.junit4.StateRestorationTester
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.core.app.ActivityOptionsCompat
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -30,13 +31,15 @@ class PermissionActionLauncherTest {
     private val settingsIntent = Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
     private var results = 0
 
-    /** Records runtime requests and answers each one with [granted]. */
-    private class FakeRegistry(private val granted: Boolean) : ActivityResultRegistry() {
+    /** Records runtime requests and answers each one with [granted], or later if [granted] is null. */
+    private class FakeRegistry(private val granted: Boolean?) : ActivityResultRegistry() {
         val launched = mutableListOf<Any?>()
+        var lastRequestCode = -1
 
         override fun <I, O> onLaunch(requestCode: Int, contract: ActivityResultContract<I, O>, input: I, options: ActivityOptionsCompat?) {
             launched += input
-            dispatchResult(requestCode, granted)
+            lastRequestCode = requestCode
+            granted?.let { dispatchResult(requestCode, it) }
         }
     }
 
@@ -108,6 +111,29 @@ class PermissionActionLauncherTest {
         val launch = launcher(FakeRegistry(granted = false))
 
         launch(PermissionAction.RequestRuntime(Manifest.permission.POST_NOTIFICATIONS, settingsIntent))
+        composeRule.waitForIdle()
+
+        assertThat(nextStartedAction()).isEqualTo(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+    }
+
+    @Test
+    fun `a permanent denial delivered after re-creation still opens the settings`() {
+        shadowOf(activity.packageManager).setShouldShowRequestPermissionRationale(Manifest.permission.POST_NOTIFICATIONS, false)
+        val registry = FakeRegistry(granted = null)
+        val owner = object : ActivityResultRegistryOwner {
+            override val activityResultRegistry: ActivityResultRegistry = registry
+        }
+        lateinit var launch: (PermissionAction) -> Unit
+        val restoration = StateRestorationTester(composeRule)
+        restoration.setContent {
+            CompositionLocalProvider(LocalActivityResultRegistryOwner provides owner) {
+                launch = rememberPermissionActionLauncher(onResult = { results++ })
+            }
+        }
+        launch(PermissionAction.RequestRuntime(Manifest.permission.POST_NOTIFICATIONS, settingsIntent))
+
+        restoration.emulateSavedInstanceStateRestore()
+        composeRule.runOnIdle { registry.dispatchResult(registry.lastRequestCode, false) }
         composeRule.waitForIdle()
 
         assertThat(nextStartedAction()).isEqualTo(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
