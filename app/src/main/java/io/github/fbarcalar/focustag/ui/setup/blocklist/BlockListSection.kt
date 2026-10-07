@@ -13,6 +13,9 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.selection.toggleable
+import androidx.compose.foundation.text.input.TextFieldLineLimits
+import androidx.compose.foundation.text.input.clearText
+import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material3.Checkbox
@@ -23,7 +26,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.produceState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -34,6 +40,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import io.github.fbarcalar.focustag.R
 import io.github.fbarcalar.focustag.ui.theme.FocusTagTheme
+import kotlinx.coroutines.flow.drop
 
 /** User actions in the Block list section. */
 sealed interface BlockListEvent {
@@ -51,7 +58,7 @@ fun LazyListScope.blockListSection(
     when (val apps = state.apps) {
         AppsState.Loading -> item(key = "block-list-loading") { Loading() }
         is AppsState.Loaded -> {
-            if (apps.rows.isEmpty()) item(key = "block-list-empty") { Text(stringResource(R.string.setup_block_list_empty)) }
+            if (apps.rows.isEmpty()) item(key = "block-list-empty") { EmptyText(state.query) }
             items(apps.rows, key = { it.packageName }) { row ->
                 AppRowView(row, loadIcon, onToggle = { onEvent(BlockListEvent.SetBlocked(row.packageName, it)) })
             }
@@ -59,19 +66,30 @@ fun LazyListScope.blockListSection(
     }
 }
 
+/** The field owns its text synchronously (no lag behind the ViewModel); only edits flow up. */
 @Composable
 private fun BlockListHeader(query: String, onQueryChange: (String) -> Unit) {
+    val field = rememberTextFieldState(query)
+    val currentOnQueryChange by rememberUpdatedState(onQueryChange)
+    LaunchedEffect(field) {
+        snapshotFlow { field.text.toString() }.drop(1).collect { currentOnQueryChange(it) }
+    }
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(stringResource(R.string.setup_block_list_title), style = MaterialTheme.typography.titleMedium)
         OutlinedTextField(
-            value = query,
-            onValueChange = onQueryChange,
+            state = field,
             label = { Text(stringResource(R.string.setup_block_list_search)) },
-            singleLine = true,
-            trailingIcon = { if (query.isNotEmpty()) ClearButton { onQueryChange("") } },
+            lineLimits = TextFieldLineLimits.SingleLine,
+            trailingIcon = { if (field.text.isNotEmpty()) ClearButton { field.clearText() } },
             modifier = Modifier.fillMaxWidth(),
         )
     }
+}
+
+@Composable
+private fun EmptyText(query: String) {
+    val message = if (query.isBlank()) R.string.setup_block_list_none else R.string.setup_block_list_empty
+    Text(stringResource(message))
 }
 
 @Composable

@@ -74,5 +74,6 @@
     <string name="setup_block_list_search">Search apps</string>
     <string name="setup_block_list_clear">Clear search</string>
     <string name="setup_block_list_empty">No apps match.</string>
+    <string name="setup_block_list_none">No apps found.</string>
     <string name="setup_block_list_locked">Can\'t unblock during focus</string>
 </resources>

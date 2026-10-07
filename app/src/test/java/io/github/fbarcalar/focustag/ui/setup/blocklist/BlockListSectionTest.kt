@@ -7,6 +7,7 @@ import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
@@ -59,6 +60,7 @@ class BlockListSectionTest {
         show(BlockListUiState(apps = AppsState.Loaded(listOf(maps))))
 
         composeRule.onNodeWithText(text(R.string.setup_block_list_search)).performTextInput("tube")
+        composeRule.waitForIdle()
 
         assertThat(events).containsExactly(BlockListEvent.QueryChanged("tube"))
     }
@@ -71,6 +73,23 @@ class BlockListSectionTest {
         composeRule.onNodeWithText("VideoTube").assertIsNotEnabled()
         composeRule.onNodeWithText("Maps").assertIsEnabled()
         composeRule.onNodeWithText(text(R.string.setup_block_list_locked), useUnmergedTree = true).assertExists()
+    }
+
+    @Test
+    fun `clearing the search reports an empty query`() {
+        show(BlockListUiState(query = "tube", apps = AppsState.Loaded(listOf(video))))
+
+        composeRule.onNodeWithContentDescription(text(R.string.setup_block_list_clear)).performClick()
+        composeRule.waitForIdle()
+
+        assertThat(events).containsExactly(BlockListEvent.QueryChanged(""))
+    }
+
+    @Test
+    fun `an empty list without a query says no apps were found`() {
+        show(BlockListUiState(apps = AppsState.Loaded(emptyList())))
+
+        composeRule.onNodeWithText(text(R.string.setup_block_list_none)).assertExists()
     }
 
     @Test
