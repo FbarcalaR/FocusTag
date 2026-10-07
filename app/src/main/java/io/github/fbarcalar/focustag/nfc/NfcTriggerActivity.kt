@@ -7,8 +7,8 @@ import androidx.lifecycle.lifecycleScope
 import dagger.hilt.android.AndroidEntryPoint
 import io.github.fbarcalar.focustag.di.ApplicationScope
 import javax.inject.Inject
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
 
 /**
@@ -33,10 +33,23 @@ class NfcTriggerActivity : ComponentActivity() {
         // A re-created instance must not process the same intent twice; the first one already did.
         if (savedInstanceState != null) return finish()
         val scan = gateway.readTag(intent) ?: return finish()
-        val work = appScope.async { processor.process(scan) }
+        val feedback = CompletableDeferred<ScanFeedback?>()
+        appScope.launch { process(scan, feedback) }
         lifecycleScope.launch {
-            work.await()?.let { Toast.makeText(applicationContext, it.message, Toast.LENGTH_SHORT).show() }
-            finish()
+            try {
+                feedback.await()?.let { Toast.makeText(applicationContext, it.message, Toast.LENGTH_SHORT).show() }
+            } finally {
+                finish()
+            }
+        }
+    }
+
+    /** Failures still reach the app scope's handler; the activity is released either way. */
+    private suspend fun process(scan: ScannedTag, feedback: CompletableDeferred<ScanFeedback?>) {
+        try {
+            feedback.complete(processor.process(scan))
+        } finally {
+            feedback.complete(null)
         }
     }
 }
