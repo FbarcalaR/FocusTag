@@ -19,7 +19,7 @@ class FocusAccessibilityService : AccessibilityService() {
     lateinit var guardFactory: ForegroundAppGuard.Factory
 
     @Inject
-    @field:ApplicationScope
+    @ApplicationScope
     lateinit var appScope: CoroutineScope
 
     private lateinit var serviceScope: CoroutineScope
