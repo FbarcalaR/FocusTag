@@ -20,6 +20,7 @@ internal fun spokenDuration(duration: Duration): String {
     val minutes = (totalSeconds / 60 % 60).toInt()
     val seconds = (totalSeconds % 60).toInt()
     return when {
+        hours > 0 && minutes == 0 -> pluralStringResource(R.plurals.status_spoken_hours, hours, hours)
         hours > 0 -> listOf(
             pluralStringResource(R.plurals.status_spoken_hours, hours, hours),
             pluralStringResource(R.plurals.status_spoken_minutes, minutes, minutes),

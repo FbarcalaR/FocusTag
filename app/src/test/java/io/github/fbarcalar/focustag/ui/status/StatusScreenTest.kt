@@ -153,6 +153,13 @@ class StatusScreenTest {
     }
 
     @Test
+    fun `whole hours are spoken without zero minutes`() {
+        show(focused.copy(todayTotal = 2.hours + 30.seconds))
+
+        composeRule.onNode(hasText("02:00:30") and hasContentDescription("2 hours")).assertExists()
+    }
+
+    @Test
     fun `today's total stays reachable at double font size`() {
         composeRule.setContent {
             DeviceConfigurationOverride(DeviceConfigurationOverride.FontScale(2f)) {
