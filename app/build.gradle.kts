@@ -96,3 +96,9 @@ dependencies {
     testImplementation(libs.hilt.android.testing)
     kspTest(libs.hilt.compiler)
 }
+
+// Lint reads generated unit-test sources; without this ordering it can race the KSP/Hilt
+// generators when `lint` and `test` run in one invocation and fail on a missing file.
+tasks.matching { it.name == "lintAnalyzeDebugUnitTest" }.configureEach {
+    mustRunAfter("kspDebugUnitTestKotlin", "hiltJavaCompileDebugUnitTest")
+}
