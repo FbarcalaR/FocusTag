@@ -849,7 +849,7 @@ Android assumptions: the system binds the service with `BIND_ACCESSIBILITY_SERVI
 
 ---
 
-### T7 — Setup screen · status: `todo`
+### T7 — Setup screen · status: `in-progress`
 **Goal:** Pair/re-pair/reset tags, pick blocked apps, see and fix permissions.
 **Owns:** `ui/setup/**`, `res/values/strings_setup.xml`, `test/.../ui/setup/**`.
 **Depends on:** T1 (contracts), merged after T3, T4, T5. **Decisions:** D-14, D-25, D-33, D-45.
@@ -862,6 +862,81 @@ Android assumptions: the system binds the service with `BIND_ACCESSIBILITY_SERVI
 
 **Acceptance criteria:** the pairing flow works end-to-end against `FakeNfcGateway`, incl. timeout/cancel and write errors; search filters case-insensitively; FOCUS gating per D-45; every permission row opens the right intent; reader mode is never left enabled after leaving the screen.
 **Test strategy:** ViewModel tests with fakes (pairing success/error/double-scan/cancel); Compose UI tests (Robolectric) for each section, the FOCUS-gated state, and the adb command text; Robolectric check that the reader mode enable/disable calls are balanced over lifecycle.
+
+#### Refinement notes (T7)
+
+##### P1. Units (package `ui.setup`, every file ≤ 200 lines; one ViewModel per section so each stays small and testable alone)
+
+| File | Responsibility |
+|------|----------------|
+| `SetupDestination.kt` | Frozen signature kept, `// PLACEHOLDER(T7)` body replaced. Thin stateful wrapper: three `hiltViewModel()`s, `collectAsStateWithLifecycle`, `ReaderModeEffect`, `LifecycleResumeEffect { permissions.refresh() }`, the permission-action launcher, and `LaunchedEffect(pairing)` that calls `onPairingComplete()` when the pairing state is `Done(completesSetup = true)`. |
+| `SetupScreen.kt` | Stateless `SetupScreen(tags, permissions, blockList, onTagEvent, onPermissionEvent, onBlockListEvent, onBack)`: `Scaffold` + top bar (back arrow only when `onBack != null`) + **one** `LazyColumn` with three sections in this order: Tags, Permissions, Block list (last, because it is long). No nested scrolling. A FOCUS info card at the top ("Focus is on: resetting tags and unblocking apps are locked until you scan the living-room tag", D-45). |
+| `tags/TagsUiState.kt` | `data class TagsUiState(cards: List<TagCard>, nfc: NfcAvailability, focusLocked: Boolean, pairing: PairingState)`; `data class TagCard(role, shortUid: String?, canPair, canRepair, canReset)` built by a pure `fun tagCards(pairings, locked)`; `sealed interface PairingState { Idle; WaitingForTag(role); Writing(role); Done(role, completesSetup); Failed(role, error: PairingError) }`; `enum PairingError { UID_USED_BY_OTHER_ROLE, READ_ONLY, TOO_SMALL, NOT_NDEF, IO_ERROR, VERIFY_FAILED, TIMED_OUT }` with a pure `PairingResult → PairingState` mapping. `shortUid` = last 6 hex digits as `…D4:E5:F6`. |
+| `tags/TagPairingViewModel.kt` | `@HiltViewModel(PairingRepository, TagWriter, NfcGateway, FocusStateReader)`. State machine in P2. Exposes `enableReaderMode(activity)` / `disableReaderMode(activity)` (delegating to `NfcGateway` with `::onTagDiscovered`; the Activity is passed per call, never stored), `startPairing(role)`, `cancel()`, `retry()`, `dismiss()`, `reset(role)`. |
+| `tags/TagSection.kt`, `tags/PairingDialog.kt` | Two role cards ("Tag A · Desk · starts focus", "Tag B · Living room · ends focus"): Paired + short UID or Not paired; buttons Pair / Re-pair / Reset (Reset behind a confirm dialog); disabled buttons carry the lock explanation. NFC `DISABLED` → card "NFC is off" + button launching the `NFC_ENABLED` checklist item's intent (one source for that intent); `UNAVAILABLE` → "This phone has no NFC", Pair disabled. `PairingDialog`: Waiting ("Hold Tag A to the back of the phone", progress, Cancel), Writing ("Writing… keep the tag still", no buttons, not dismissable), Failed (message + Try again / Close), Done without `completesSetup` ("Tag A paired", OK). |
+| `tags/ReaderModeEffect.kt` | `@Composable ReaderModeEffect(enabled: Boolean, onEnable: (Activity) -> Unit, onDisable: (Activity) -> Unit)` = `LocalActivity.current` + `LifecycleResumeEffect(enabled, activity) { if (enabled) onEnable(a); onPauseOrDispose { if (enabled) onDisable(a) } }`. Enable happens only in RESUMED (which `NfcAdapter.enableReaderMode` requires); disable runs on pause **and** on leaving composition, so reader mode is never left on. No activity (preview) → no-op. |
+| `blocklist/BlockListUiState.kt` | `data class BlockListUiState(query: String, apps: AppsState, focusLocked: Boolean)`; `sealed interface AppsState { Loading; Loaded(rows: List<AppRow>) }`; `data class AppRow(packageName, label, blocked, canToggle)` from a pure `fun appRows(apps, blocked, query, locked)`: filter `label` or `packageName` contains `query.trim()` ignoring case; source order (already sorted by label); `canToggle = !(locked && blocked)`. Plus `removeRefused: Boolean` for the race message. |
+| `blocklist/BlockListViewModel.kt` | `@HiltViewModel(BlockListRepository, InstalledAppsSource, FocusStateReader)`. `launchableApps()` once in `init` → `Loaded`; `combine(apps, blockedPackages, query, locked)`; `onQueryChange`, `setBlocked(pkg, blocked)` (`add`, or `remove` → `NotAllowedDuringFocus` sets `removeRefused` → snackbar "Apps can't be unblocked during focus"), `suspend fun icon(pkg)` (delegates; no extra cache, T5's source decides). |
+| `blocklist/BlockListSection.kt` | `LazyListScope.blockListSection(...)`: header, `OutlinedTextField` search (clear button), Loading spinner, "No apps match" empty state, rows keyed by package (icon via `produceState { icon(pkg) }` off the composition, label, `Checkbox`; whole row toggles; disabled row explains the lock). |
+| `permissions/PermissionsUiState.kt` | `data class PermissionsUiState(rows: List<PermissionRow>, fallbackEnabled: Boolean, fallbackToggleEnabled: Boolean)`; `PermissionRow(item, ...)` keeps the contract `PermissionItem` (its `action` is what the launcher needs). Pure `fun fallbackToggleEnabled(secureGranted, fallbackOn, locked)`: turning on needs the grant; turning off is always possible except in FOCUS (P5, P4). |
+| `permissions/PermissionsViewModel.kt` | `@HiltViewModel(PermissionChecker, GrayscaleFallbackSettings, FocusStateReader)`: `refresh()`, `setFallbackEnabled(Boolean)`. |
+| `permissions/PermissionSection.kt`, `permissions/PermissionRowItem.kt` | One row per item in checklist order: title + one-line why, "Required"/"Optional" tag, status chip (Granted / Missing / Not supported). Buttons only while MISSING (P5). |
+| `permissions/PermissionActionLauncher.kt` | `rememberPermissionActionLauncher(onResult: () -> Unit): (PermissionAction) -> Unit`, the only place that starts intents / requests permissions (Android-bound, kept out of ViewModels). |
+| `res/values/strings_setup.xml` | All strings, `setup_` prefix, plurals where counted. |
+
+##### P2. Pairing state machine (TagPairingViewModel)
+
+* `startPairing(role)` from Idle/Done/Failed → `WaitingForTag(role)`, only if NFC is `ENABLED` and the card allows it (P4); otherwise ignored. Starts a **60 s timeout** job → `Failed(role, TIMED_OUT)`.
+* `onTagDiscovered(handle)` (binder thread) → `viewModelScope.launch` (main): only in `WaitingForTag(role)` → cancel timeout, `Writing(role)`, `tagWriter.pair(handle, role)` → `Paired` → `Done(role, completesSetup = !before.isComplete() && after.isComplete())` (`before` = pairings snapshot taken when the tag arrived); `UidUsedByOtherRole` / `WriteFailed(reason)` → `Failed(role, error)`. In any other state the tag is **ignored** (double scan while Writing, stray tag while Idle).
+* `cancel()` only from Waiting → Idle (a running write is not cancelled: abandoning it mid-write gains nothing). `retry()` from Failed → `WaitingForTag(same role)` (VERIFY_FAILED copy: "The tag was prepared. Tap it again to finish", T3 N3). `dismiss()` → Idle.
+* While Waiting, NFC leaving `ENABLED` or the mode turning FOCUS on a role that is locked → Idle.
+* `reset(role)` re-reads `state.first()` and refuses in FOCUS (`PairingRepository.reset` itself is not gated by contract, so the VM is the gate besides the disabled button).
+* Copy per error: UID used by other role ("This tag is already Tag B. Use another tag"), READ_ONLY ("This tag is locked and can't be written"), TOO_SMALL, NOT_NDEF ("Unsupported tag. Use NTAG213/215/216", D-16), IO_ERROR ("Lost contact with the tag. Hold it still and try again"), VERIFY_FAILED, TIMED_OUT ("No tag found").
+
+##### P3. Reader mode scope (D-14) — screen-scoped, not only while waiting
+
+Reader mode is **on whenever the Setup screen is RESUMED and NFC is ENABLED**; the VM consumes tags only in `WaitingForTag`. Reason: if reader mode were switched off right after a successful write, the tag still lying on the phone is re-discovered by normal dispatch and the manifest filter fires `NfcTriggerActivity`, so pairing Tag A would start FOCUS (MC-01 says pairing scans must not toggle). Screen-scoped reader mode gives the open screen exclusive tag access as D-14 intends, and a stray scan on Setup is harmlessly swallowed. It is still never left on: disabled on pause, on leaving the screen, and when NFC turns off (effect keyed on `nfc == ENABLED`). This tightens subtask 2's "while waiting"; flagged for the plan reviewer.
+
+##### P4. FOCUS gating (D-45)
+
+* Tags: in FOCUS, **Re-pair** and **Reset** are disabled with the explanation. **Pair** of a role that is *not* paired stays enabled: it is recovery, not an escape (there is no existing tag to bypass), and without it a lost pairing store (T3 N2 replaces a corrupt file with empty prefs) would leave the user stuck in FOCUS with no Tag B. Flagged for the plan reviewer.
+* Block list: unchecking a blocked app is disabled in FOCUS; checking (adding) works. A `NotAllowedDuringFocus` result (mode changed between render and tap) shows the snackbar.
+* Grayscale fallback switch: turning it **off** in FOCUS is disabled, turning it on is allowed (same "can only get stricter in FOCUS" rule as the block list; small extension of D-45's list, flagged).
+* The VMs read the lock from `FocusStateReader.state.map { it.mode == FOCUS }`; the UI never offers a mode-changing control.
+
+##### P5. Permission rows
+
+* `OpenSettings(intents)`: button "Open settings" starts `intents[0]`; on `ActivityNotFoundException` it tries the next intent (battery: request dialog → optimisation list). `ACCESSIBILITY_SERVICE` additionally shows the restricted-settings hint ("Sideloaded app: open App info → ⋮ → Allow restricted settings first", D-25) with an "App info" button for `intents[1]` (contract KDoc: accessibility adds App info).
+* `RequestRuntime(permission, settingsIntent)`: `rememberLauncherForActivityResult(RequestPermission())`; on denial with `!shouldShowRequestPermissionRationale` (dialog no longer shown) it opens `settingsIntent`; every result calls `refresh()`.
+* `AdbGrant(command)`: the exact command in a monospace, selectable text + "Copy" (`LocalClipboard.setClipEntry`, no own toast: Android 13+ confirms copies). Below it the fallback switch ("Grayscale fallback", "Applies the next time focus starts or the app restarts", R-T4-4); the switch is enabled when the permission is GRANTED, except that turning it off is blocked in FOCUS (P4); if the grant is lost while on, the user can still switch it off in FREE.
+* GRANTED / UNSUPPORTED rows show only the chip. Rows re-check on ON_RESUME (`refresh()`), which also covers returning from Settings.
+
+##### P6. Tests (`test/.../ui/setup/**`; T7-local fakes there: `FakeTagWriter` (scripted results, optional `CompletableDeferred` gate to observe Writing), `FakeBlockListRepository` (refuses remove when a flag says FOCUS), `FakeInstalledAppsSource`, `FakeGrayscaleFallbackSettings`; shared `FakeNfcGateway`, `FakeFocusEngine`, `FakePermissionChecker`, `MainDispatcherRule`)
+
+*JVM ViewModel tests (Turbine, `StandardTestDispatcher` where virtual time matters)*
+* `TagPairingViewModelTest`: start → Waiting; tag → Writing → Done; second pair completing the set → `completesSetup = true`, re-pair when already complete → false; each `WriteFailure` and `UidUsedByOtherRole` → Failed with the matching error; double scan while Writing → one `pair` call; tag while Idle ignored; cancel → Idle; 60 s timeout → TIMED_OUT and a tag after it is ignored; retry → Waiting same role; NFC off while waiting → Idle; start refused when NFC not ENABLED; FOCUS: re-pair/reset refused (repository untouched), pair of an unpaired role allowed; `tagCards` table (paired/unpaired × FREE/FOCUS); `shortUid` format; reader-mode enable/disable delegate to the gateway and a presented tag reaches the machine.
+* `BlockListViewModelTest`: Loading → Loaded; query filters label case-insensitively and by package, blank query shows all; add in FREE and FOCUS; remove in FREE; in FOCUS a blocked row has `canToggle = false`; refused remove → `removeRefused`.
+* `PermissionsViewModelTest`: rows mirror the checker; `refresh()` delegates; fallback toggle enabled rules (granted/not × on/off × FREE/FOCUS); `setFallbackEnabled` persists.
+
+*Robolectric Compose (stateless screens, `createAndroidComposeRule<ComponentActivity>` from `junit4.v2`, `waitForIdle`)*
+* `TagSectionTest`: unpaired / paired with short UID; FOCUS → Re-pair and Reset disabled with explanation, Pair of an unpaired role enabled; NFC off card launches the NFC settings intent; each dialog state's text and buttons; Reset confirm.
+* `BlockListSectionTest`: typing filters rows; checkbox toggles; FOCUS → checked row disabled, unchecked row enabled; empty-search text.
+* `PermissionSectionTest`: chips; "Open settings" starts the item's first intent (`shadowOf(app).nextStartedActivity`, compared field-wise, R8); accessibility "App info" starts the second; fallback to the second intent when the first has no activity (`ShadowPackageManager` + `setCheckActivities`... or a thrown `ActivityNotFoundException`); notifications row launches `RequestRuntime` through a test `ActivityResultRegistry` (`LocalActivityResultRegistryOwner`) with `POST_NOTIFICATIONS`, and a permanent denial opens the settings intent; adb row shows the exact command and Copy puts it on the clipboard; switch disabled when not granted.
+* `ReaderModeEffectTest`: counting `onEnable`/`onDisable` over resume → pause → resume → leave composition, `enabled` flipping false/true, and `ActivityScenario.moveToState(CREATED)`; asserts calls are balanced and the last call is a disable (also against `FakeNfcGateway.readerModeEnabled == false`).
+* `SetupDestinationTest` (`@HiltAndroidTest`, `MainActivity`, `cancelApplicationScope` in `@After`): reader mode is on while Setup is resumed and off after navigating away / closing the scenario; ON_RESUME calls `refresh()` (via `@BindValue FakePermissionChecker`).
+* Previews: every section in FREE, FOCUS-locked, NFC off, each dialog state, apps loading / empty search, mixed permission statuses (`@Preview` functions next to each composable, fed by sample states).
+
+##### P7. Cross-layer scenarios (written at Integrate, `e2e/scenarios/`)
+
+* **E2E-12** `E2E12SetupPairingTest` (T2 + T3 + T7; all merged, so T7 writes it): (1) `openMainUi()` → Setup; tap Pair on Tag A, `fakeNfcGateway().present(FakeTagHandle(ScannedTag(uidA, emptyList())))`, OK; same for Tag B → the app routes to Status (Setup title gone, the Status top-bar "Open setup" node shown), both pairings saved through the real `NfcTagWriter`, mode still FREE (pairing writes don't toggle), reader mode off after leaving Setup. (2) `pairTags()`, `scanTag(ACTIVATE)` → FOCUS; `openMainUi()` → Status → Setup: Reset and Re-pair disabled, pairings unchanged; `scanTag(DEACTIVATE)` → FREE → Reset A enabled, confirm → A unpaired.
+* **E2E-13** `E2E13BlockListRemovalGatedTest` (T2 + T5 + T7; written after T5 merges, against the real `BlockListStore` and installed-apps source with a launcher activity registered in `ShadowPackageManager`): block an app in FREE through the UI; `scanTag(ACTIVATE)` → its checkbox disabled and the repo still contains it; `openApp(pkg)` → `assertBlockingShown(pkg)`; `scanTag(DEACTIVATE)` → uncheck → repo no longer contains it.
+
+##### P8. Risks
+
+* Real `ActivityNotFoundException`/resolution of the system intents only on device (MC-10).
+* `LocalActivity` + `LifecycleResumeEffect` need activity-compose ≥ 1.10 / lifecycle ≥ 2.7 (we have 1.13 / 2.11).
+* T6 runs concurrently: E2E-12 asserts Status through the T1 string `action_open_setup` (top-bar Settings icon, which T6 is expected to keep per T1 R4); adjust at Integrate if T6 changes it.
+* T5 not merged: Block-list VM/UI tests use T7 fakes; the real source's icon loading/perf is checked at Integrate (E2E-13).
 
 ---
 
