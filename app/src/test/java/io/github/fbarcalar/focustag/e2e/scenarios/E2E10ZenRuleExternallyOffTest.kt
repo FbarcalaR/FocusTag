@@ -14,10 +14,10 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.Shadows.shadowOf
 
-/** E2E-10: the user switches the mode off while FOCUS; the app re-asserts it without looping. */
+/** E2E-10 (T2 + T4): the user switches the mode off while FOCUS; the app re-asserts it without looping. */
 @HiltAndroidTest
 @RunWith(AndroidJUnit4::class)
-class ZenRuleExternallyOffTest : FocusTagE2E() {
+class E2E10ZenRuleExternallyOffTest : FocusTagE2E() {
     private val zen = ZenTestSupport(app)
 
     @Before

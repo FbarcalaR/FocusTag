@@ -1,5 +1,6 @@
 package io.github.fbarcalar.focustag.e2e.scenarios
 
+import android.service.notification.Condition
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.common.truth.Truth.assertThat
 import dagger.hilt.android.testing.HiltAndroidTest
@@ -13,19 +14,21 @@ import io.github.fbarcalar.focustag.testing.FakeClock
 import org.junit.Test
 import org.junit.runner.RunWith
 
-/** E2E-8: BOOT_COMPLETED in FOCUS re-applies the effects. */
+/** E2E-7 (T2 + T4): a new process in FOCUS re-applies the effects and adopts the leftover zen rule. */
 @HiltAndroidTest
 @RunWith(AndroidJUnit4::class)
-class RebootInFocusTest : FocusTagE2E() {
+class E2E7ProcessDeathInFocusTest : FocusTagE2E() {
     private val zen = ZenTestSupport(app)
 
     @Test
-    fun `a reboot in focus switches the zen rule back on`() {
+    fun `a cold start in focus re-applies effects with exactly one zen rule`() {
         seedPreferences("focus_state") { FocusStateStore(it).enterFocus(FakeClock.DEFAULT_INSTANT) }
+        // Set on the shadow directly: grant() would touch the graph before the leftover exists.
         zen.setPolicyAccess(true)
+        zen.setState(zen.addOurRule(), Condition.STATE_FALSE)
         grant(SystemGrant.POST_NOTIFICATIONS)
 
-        reboot()
+        startApp()
 
         assertMode(FocusMode.FOCUS)
         assertZenRuleActive(true)
