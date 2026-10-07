@@ -56,10 +56,10 @@ phone or app able to read NDEF (e.g. NFC Tools).
 | 3 | If asked, tap the same tag again. | "Tag A · Desk paired." The row shows "Paired · …". | |
 | 4 | Keep the tag on the phone for 5 s after the dialog says paired, then close the dialog. | No toast. The mode stays FREE TIME, and no "Focus active" notification appears. | |
 | 5 | Tap **Pair** on "Tag B · Living room", then hold **Tag A** to the phone. | "This tag is already paired as the other tag. Use another tag." | |
-| 6 | Pair Tag B with a second tag. | "Tag B · Living room paired." | |
-| 7 | With Setup still open (no dialog), tap Tag A, then Tag B. | Nothing happens: no toast and no mode change. | |
+| 6 | Pair Tag B with a second tag. | No "paired" dialog: pairing the second tag completes setup, and the app switches straight to Status (FREE TIME). | |
+| 7 | Open Setup again from Status (top-bar settings icon). With Setup open, tap Tag A, then Tag B. | Nothing happens: no toast and no mode change. | |
 | 8 | Read Tag A and Tag B with NFC Tools. | Each holds a URI record `focustag://toggle/<uuid>` (two different UUIDs) and an Android Application Record for `io.github.fbarcalar.focustag`. | |
-| 9 | Go back. | The app shows Status (FREE TIME). | |
+| 9 | Go back from Setup. | The app shows Status, still FREE TIME. | |
 
 ## MC-02 — Background scans with the app closed
 
