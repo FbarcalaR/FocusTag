@@ -14,12 +14,14 @@ import java.io.File
 import java.io.IOException
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.retryWhen
 
 /** The block list persisted in the `block_list` DataStore; removal is refused while FOCUS (D-45). */
 @Singleton
@@ -28,7 +30,7 @@ class BlockListStore @Inject constructor(
     private val focusState: FocusStateReader,
 ) : BlockListRepository {
     override val blockedPackages: Flow<Set<String>> = dataStore.data
-        .catch { error -> if (error is IOException) emit(emptyPreferences()) else throw error }
+        .retryWhen { error, _ -> error is IOException && waitBeforeRetry() }
         .map { it[BLOCKED_PACKAGES].orEmpty() }
         .distinctUntilChanged()
 
@@ -42,8 +44,16 @@ class BlockListStore @Inject constructor(
         return RemoveResult.Removed
     }
 
+    private suspend fun waitBeforeRetry(): Boolean {
+        delay(READ_RETRY_DELAY)
+        return true
+    }
+
     companion object {
         private val BLOCKED_PACKAGES = stringSetPreferencesKey("blocked_packages")
+
+        /** A failed read is retried (not replaced by an empty list), so blocking never stops for good. */
+        private val READ_RETRY_DELAY = 1.seconds
 
         /** The store's DataStore; a corrupt file is replaced by an empty list. */
         fun createDataStore(scope: CoroutineScope, file: () -> File): DataStore<Preferences> =

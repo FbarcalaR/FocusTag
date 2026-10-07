@@ -1,14 +1,21 @@
 package io.github.fbarcalar.focustag.blocker
 
+import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.preferencesOf
+import androidx.datastore.preferences.core.stringSetPreferencesKey
 import com.google.common.truth.Truth.assertThat
 import io.github.fbarcalar.focustag.focus.TagRole
 import io.github.fbarcalar.focustag.testing.FakeFocusEngine
 import java.io.File
+import java.io.IOException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.job
 import kotlinx.coroutines.test.runTest
 import org.junit.After
@@ -85,6 +92,27 @@ class BlockListStoreTest {
         val dataStore = BlockListStore.createDataStore(scope) { file }
 
         assertThat(BlockListStore(dataStore, focus).blockedPackages.first()).isEmpty()
+    }
+
+    @Test
+    fun `a failed read is retried instead of ending the list`() = runTest {
+        val flaky = FailingOnceDataStore(preferencesOf(stringSetPreferencesKey("blocked_packages") to setOf(APP)))
+
+        assertThat(BlockListStore(flaky, focus).blockedPackages.first()).containsExactly(APP)
+    }
+
+    private class FailingOnceDataStore(private val stored: Preferences) : DataStore<Preferences> {
+        private var failed = false
+
+        override val data: Flow<Preferences> = flow {
+            if (!failed) {
+                failed = true
+                throw IOException("disk hiccup")
+            }
+            emit(stored)
+        }
+
+        override suspend fun updateData(transform: suspend (Preferences) -> Preferences) = transform(stored)
     }
 
     private companion object {
