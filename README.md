@@ -61,7 +61,11 @@ that haven't been tried on the Pixel 10a yet. The on-device path is the referenc
    adb shell settings get secure enabled_accessibility_services                              # check first
    adb shell settings put secure enabled_accessibility_services \
      io.github.fbarcalar.focustag/.blocker.FocusAccessibilityService                         # (unverified)
+   adb shell settings put secure accessibility_enabled 1                                     # (unverified)
    ```
+
+   The `appops` line only matters for the on-device toggle: it unlocks the greyed-out switch, while the
+   `settings put` lines enable the service directly.
 
    `settings put` **replaces** the whole list. If the `get` printed other services, append ours to that
    value with a `:` separator instead.
