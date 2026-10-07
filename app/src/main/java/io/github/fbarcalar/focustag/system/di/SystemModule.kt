@@ -19,7 +19,7 @@ import io.github.fbarcalar.focustag.focus.FocusEffects
 import io.github.fbarcalar.focustag.system.GrayscaleFallbackSettings
 import io.github.fbarcalar.focustag.system.PermissionChecker
 import io.github.fbarcalar.focustag.system.SystemFocusEffects
-import io.github.fbarcalar.focustag.system.PlaceholderPermissionChecker
+import io.github.fbarcalar.focustag.system.permissions.AndroidPermissionChecker
 import io.github.fbarcalar.focustag.system.grayscale.DataStoreGrayscaleFallbackSettings
 import javax.inject.Qualifier
 import javax.inject.Singleton
@@ -38,7 +38,7 @@ interface SystemModule {
     fun focusEffects(effects: SystemFocusEffects): FocusEffects
 
     @Binds
-    fun permissionChecker(checker: PlaceholderPermissionChecker): PermissionChecker
+    fun permissionChecker(checker: AndroidPermissionChecker): PermissionChecker
 
     @Binds
     fun grayscaleFallbackSettings(settings: DataStoreGrayscaleFallbackSettings): GrayscaleFallbackSettings
