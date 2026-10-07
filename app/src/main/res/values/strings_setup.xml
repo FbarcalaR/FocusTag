@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Screen -->
+    <string name="setup_focus_locked">Focus is on: resetting tags and unblocking apps are locked. Go back and scan the living-room tag to end focus.</string>
+
+    <!-- Tags -->
+    <string name="setup_tags_title">Tags</string>
+    <string name="setup_tags_caption">Tag scans don\'t switch focus while this screen is open.</string>
+    <string name="setup_tag_activate_title">Tag A · Desk</string>
+    <string name="setup_tag_activate_role">Starts focus</string>
+    <string name="setup_tag_deactivate_title">Tag B · Living room</string>
+    <string name="setup_tag_deactivate_role">Ends focus</string>
+    <string name="setup_tag_paired">Paired · %1$s</string>
+    <string name="setup_tag_unpaired">Not paired</string>
+    <string name="setup_tag_pair">Pair</string>
+    <string name="setup_tag_repair">Re-pair</string>
+    <string name="setup_tag_reset">Reset</string>
+    <string name="setup_tag_locked">Locked during focus</string>
+    <string name="setup_nfc_off">NFC is off. Turn it on to pair tags.</string>
+    <string name="setup_nfc_open_settings">Open NFC settings</string>
+    <string name="setup_nfc_unavailable">This phone has no NFC, so tags can\'t be paired.</string>
+    <string name="setup_reset_title">Reset %1$s?</string>
+    <string name="setup_reset_message">The tag stops working until you pair it again.</string>
+    <string name="setup_reset_confirm">Reset</string>
+    <string name="setup_cancel">Cancel</string>
+
+    <!-- Pairing dialog -->
+    <string name="setup_pairing_title">Pair %1$s</string>
+    <string name="setup_pairing_waiting">Hold the tag to the back of the phone.</string>
+    <string name="setup_pairing_writing">Writing… keep the tag still.</string>
+    <string name="setup_pairing_done">%1$s paired.</string>
+    <string name="setup_pairing_try_again">Try again</string>
+    <string name="setup_pairing_close">Close</string>
+    <string name="setup_pairing_ok">OK</string>
+    <string name="setup_pairing_error_uid_used">This tag is already paired as the other tag. Use another tag.</string>
+    <string name="setup_pairing_error_read_only">This tag is locked and can\'t be written.</string>
+    <string name="setup_pairing_error_too_small">This tag is too small. Use an NTAG213/215/216.</string>
+    <string name="setup_pairing_error_not_ndef">Unsupported tag. Use an NTAG213/215/216.</string>
+    <string name="setup_pairing_error_io">Lost contact with the tag. Hold it still and try again.</string>
+    <string name="setup_pairing_error_verify">The tag was prepared. Tap it again to finish.</string>
+    <string name="setup_pairing_error_timeout">No tag found.</string>
+
+    <!-- Permissions -->
+    <string name="setup_permissions_title">Permissions</string>
+    <string name="setup_permission_required_granted">Required · Granted</string>
+    <string name="setup_permission_required_missing">Required · Missing</string>
+    <string name="setup_permission_optional_granted">Optional · Granted</string>
+    <string name="setup_permission_optional_missing">Optional · Missing</string>
+    <string name="setup_permission_unsupported">Not supported</string>
+    <string name="setup_permission_open_settings">Open settings</string>
+    <string name="setup_permission_allow">Allow</string>
+    <string name="setup_permission_app_info">App info</string>
+    <string name="setup_permission_copy">Copy</string>
+    <string name="setup_permission_nfc_title">NFC</string>
+    <string name="setup_permission_nfc_why">Needed to read your tags.</string>
+    <string name="setup_permission_accessibility_title">Accessibility service</string>
+    <string name="setup_permission_accessibility_why">Shows the blocking screen when you open a blocked app.</string>
+    <string name="setup_permission_accessibility_hint">Sideloaded app: if the switch is greyed out, open App info → ⋮ → Allow restricted settings first.</string>
+    <string name="setup_permission_dnd_title">Do Not Disturb access</string>
+    <string name="setup_permission_dnd_why">Silences notifications and turns the screen grey during focus.</string>
+    <string name="setup_permission_notifications_title">Notifications</string>
+    <string name="setup_permission_notifications_why">Shows that a focus session is running.</string>
+    <string name="setup_permission_battery_title">Battery optimisation</string>
+    <string name="setup_permission_battery_why">Keeps focus reliable while the phone sleeps.</string>
+    <string name="setup_permission_grayscale_title">Grayscale</string>
+    <string name="setup_permission_grayscale_why">Comes with Do Not Disturb access on Android 15 and later.</string>
+    <string name="setup_permission_secure_title">Grayscale fallback (adb)</string>
+    <string name="setup_permission_secure_why">Optional. Lets FocusTag switch on colour correction if the mode\'s grayscale doesn\'t work. Grant it from a computer:</string>
+    <string name="setup_fallback_title">Grayscale fallback</string>
+    <string name="setup_fallback_caption">Applies the next time focus starts or the app restarts.</string>
+
+    <!-- Block list -->
+    <string name="setup_block_list_title">Blocked apps</string>
+    <string name="setup_block_list_search">Search apps</string>
+    <string name="setup_block_list_clear">Clear search</string>
+    <string name="setup_block_list_empty">No apps match.</string>
+    <string name="setup_block_list_locked">Can\'t unblock during focus</string>
+</resources>
