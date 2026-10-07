@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">FocusTag</string>
-    <string name="title_status">Status</string>
     <string name="title_setup">Setup</string>
     <string name="action_open_setup">Open setup</string>
     <string name="action_back">Back</string>
