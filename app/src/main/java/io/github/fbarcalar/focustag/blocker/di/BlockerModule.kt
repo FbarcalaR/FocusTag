@@ -10,6 +10,8 @@ import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
+import io.github.fbarcalar.focustag.blocker.AlwaysAllowedResolver
+import io.github.fbarcalar.focustag.blocker.AndroidAlwaysAllowedResolver
 import io.github.fbarcalar.focustag.blocker.BlockListRepository
 import io.github.fbarcalar.focustag.blocker.BlockListStore
 import io.github.fbarcalar.focustag.blocker.InstalledAppsRepository
@@ -25,6 +27,9 @@ import kotlinx.coroutines.CoroutineScope
 interface BlockerModule {
     @Binds
     fun blockListRepository(store: BlockListStore): BlockListRepository
+
+    @Binds
+    fun alwaysAllowedResolver(resolver: AndroidAlwaysAllowedResolver): AlwaysAllowedResolver
 
     @Binds
     fun installedAppsSource(repository: InstalledAppsRepository): InstalledAppsSource
