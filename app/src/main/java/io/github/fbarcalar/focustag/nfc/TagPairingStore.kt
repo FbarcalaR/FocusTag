@@ -4,26 +4,26 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.MutablePreferences
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.stringPreferencesKey
 import io.github.fbarcalar.focustag.focus.TagRole
+import java.io.IOException
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 
 /** Pairings persisted in the `tag_pairings` DataStore (D-11). A role missing either key is unpaired. */
 class TagPairingStore(private val dataStore: DataStore<Preferences>) : PairingRepository {
     override val pairings: Flow<Map<TagRole, TagPairing>> =
-        dataStore.data.map { prefs -> prefs.toPairings() }.distinctUntilChanged()
+        dataStore.data
+            .catch { error -> if (error is IOException) emit(emptyPreferences()) else throw error }
+            .map { prefs -> prefs.toPairings() }
+            .distinctUntilChanged()
 
     override suspend fun save(pairing: TagPairing): PairingResult {
-        var result: PairingResult = PairingResult.Paired(pairing)
-        dataStore.edit { prefs ->
-            if (prefs.uidOf(pairing.role.other()) == pairing.uidHex) {
-                result = PairingResult.UidUsedByOtherRole
-            } else {
-                prefs.write(pairing)
-            }
-        }
+        lateinit var result: PairingResult
+        dataStore.edit { prefs -> result = prefs.saveUnlessUidTaken(pairing) }
         return result
     }
 
@@ -45,6 +45,15 @@ class TagPairingStore(private val dataStore: DataStore<Preferences>) : PairingRe
     }
 
     private fun Preferences.uidOf(role: TagRole): String? = this[uidKey(role)]
+
+    private fun MutablePreferences.saveUnlessUidTaken(pairing: TagPairing): PairingResult =
+        when (uidOf(pairing.role.other())) {
+            pairing.uidHex -> PairingResult.UidUsedByOtherRole
+            else -> {
+                write(pairing)
+                PairingResult.Paired(pairing)
+            }
+        }
 
     private fun MutablePreferences.write(pairing: TagPairing) {
         this[tagIdKey(pairing.role)] = pairing.tagId

@@ -7,11 +7,13 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import com.google.common.truth.Truth.assertThat
 import io.github.fbarcalar.focustag.focus.TagRole
 import io.github.fbarcalar.focustag.testing.TestDataStores
+import java.io.IOException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.job
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -109,6 +111,16 @@ class TagPairingStoreTest {
         store = TagPairingStore(TestDataStores.preferences(folder.root, scope))
 
         assertThat(store.pairings.first()).containsExactly(TagRole.ACTIVATE, a)
+    }
+
+    @Test
+    fun `an unreadable file reads as no pairings`() = runBlocking<Unit> {
+        val unreadable = object : DataStore<Preferences> {
+            override val data = flow<Preferences> { throw IOException("disk") }
+            override suspend fun updateData(transform: suspend (Preferences) -> Preferences) = throw IOException("disk")
+        }
+
+        assertThat(TagPairingStore(unreadable).pairings.first()).isEmpty()
     }
 
     private fun newScope() = CoroutineScope(Dispatchers.IO + Job())
