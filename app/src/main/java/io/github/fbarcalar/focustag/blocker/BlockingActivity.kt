@@ -21,7 +21,7 @@ import io.github.fbarcalar.focustag.focus.FocusState
 import io.github.fbarcalar.focustag.focus.FocusStateReader
 import io.github.fbarcalar.focustag.ui.theme.FocusTagTheme
 import javax.inject.Inject
-import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.launch
 
 /** Shown over a blocked app during FOCUS (D-20); leaves by going home, closes itself on FREE. */
@@ -66,8 +66,8 @@ class BlockingActivity : ComponentActivity() {
     private fun finishWhenFree() {
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
-                focusState.state.first { it is FocusState.Free }
-                finish()
+                // The state flow ends with the process scope; only an actual FREE closes the screen.
+                if (focusState.state.firstOrNull { it is FocusState.Free } != null) finish()
             }
         }
     }
