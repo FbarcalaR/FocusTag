@@ -7,7 +7,7 @@ import javax.inject.Inject
 
 /**
  * Collapses the several triggers one app open produces (window events, state re-emissions) into
- * one launch of the blocking screen. Main-thread only.
+ * one launch of the blocking screen. Not thread-safe; [ForegroundAppGuard] serialises its calls.
  */
 class RelaunchGuard @Inject constructor(private val clock: Clock) {
     private var lastPackage: String? = null

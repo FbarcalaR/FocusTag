@@ -28,7 +28,8 @@ class BlockListStoreTest {
 
     private fun newStore(): BlockListStore {
         val scope = CoroutineScope(Dispatchers.IO + Job()).also { scopes += it }
-        return BlockListStore(BlockListStore.createDataStore(scope) { File(folder.root, "$NAME.preferences_pb") }, focus)
+        val dataStore = BlockListStore.createDataStore(scope) { File(folder.root, "$NAME.preferences_pb") }
+        return BlockListStore(dataStore, focus)
     }
 
     private suspend fun closeAll() {

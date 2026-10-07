@@ -27,7 +27,9 @@ class AndroidAlwaysAllowedResolverTest {
 
     @Test
     fun `system ui settings and the phone process are always allowed`() {
-        assertThat(resolver.resolve()).containsAtLeast("com.android.systemui", "com.android.settings", "com.android.phone")
+        val fixed = listOf("com.android.systemui", "com.android.settings", "com.android.phone")
+
+        assertThat(resolver.resolve()).containsAtLeastElementsIn(fixed)
     }
 
     @Test
@@ -56,7 +58,8 @@ class AndroidAlwaysAllowedResolverTest {
     @Test
     fun `enabled keyboards are always allowed`() {
         val keyboard = InputMethodInfo("com.example.keyboard", "com.example.keyboard.Ime", "Keyboard", null)
-        shadowOf(context.getSystemService(InputMethodManager::class.java)).setEnabledInputMethodInfoList(listOf(keyboard))
+        val inputMethods = shadowOf(context.getSystemService(InputMethodManager::class.java))
+        inputMethods.setEnabledInputMethodInfoList(listOf(keyboard))
 
         assertThat(resolver.resolve()).contains("com.example.keyboard")
     }

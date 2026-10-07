@@ -84,8 +84,9 @@ class FocusAccessibilityServiceTest {
     @Test
     fun `unrelated event types are ignored`() {
         startFocus()
+        val click = AccessibilityEvent(AccessibilityEvent.TYPE_VIEW_CLICKED).apply { packageName = BLOCKED }
 
-        service.onAccessibilityEvent(AccessibilityEvent(AccessibilityEvent.TYPE_VIEW_CLICKED).apply { packageName = BLOCKED })
+        service.onAccessibilityEvent(click)
         idleMainLooper()
 
         assertThat(shadowOf(app).nextStartedActivity).isNull()

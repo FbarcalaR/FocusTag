@@ -8,7 +8,6 @@ import dagger.hilt.android.AndroidEntryPoint
 import io.github.fbarcalar.focustag.di.ApplicationScope
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.job
@@ -28,9 +27,9 @@ class FocusAccessibilityService : AccessibilityService() {
 
     override fun onCreate() {
         super.onCreate()
-        // A child of the app scope, so ending the process (or a test) also ends this collector.
-        val job = SupervisorJob(appScope.coroutineContext.job)
-        serviceScope = CoroutineScope(appScope.coroutineContext + job + Dispatchers.Main.immediate)
+        // A child of the app scope (and its background dispatcher), so ending the process also ends
+        // this collector without needing the main thread, which a blocked test thread may hold.
+        serviceScope = CoroutineScope(appScope.coroutineContext + SupervisorJob(appScope.coroutineContext.job))
         guard = guardFactory.create(::showBlockingScreen) { rootInActiveWindow?.packageName?.toString() }
         guard.start(serviceScope)
     }
