@@ -91,16 +91,16 @@ E2E tests are **not** a final phase. T1 ships an E2E harness: `test/.../e2e/Focu
 
 | Scenario | Needs | Written by |
 |----------|-------|------------|
-| E2E-1 Desk tag while FREE → FOCUS persisted, zen rule active, notification shown | T2, T3, T4 | T4 (T2, T3 merged) |
+| E2E-1 Desk tag while FREE → FOCUS persisted, zen rule active, notification shown | T2, T3, T4 | **T4** · `E2E1DeskTagStartsFocusTest` |
 | E2E-2 Double desk scan / living-room tag while FREE → no change | T2, T3 | **T3** · `E2E2NoChangeScansTest` |
 | E2E-3 Unknown tag, UID mismatch, foreign URI → ignored | T2, T3 | **T3** · `E2E3IgnoredTagsTest` |
-| E2E-4 Living-room tag while FOCUS → FREE, zen rule off, today's total updated | T2, T3, T4 | T4 (T2, T3 merged) |
+| E2E-4 Living-room tag while FOCUS → FREE, zen rule off, today's total updated | T2, T3, T4 | **T4** · `E2E4LivingRoomTagEndsFocusTest` |
 | E2E-5 FOCUS + open blocked app → blocking screen; allowed app → nothing | T2, T5 | T5 (T2 merged) |
 | E2E-6 Blocked app already in foreground when FOCUS starts → blocked | T2, T3, T5 | T5 (T2, T3 merged) |
-| E2E-7 Process death in FOCUS (cold start from a seeded FOCUS store) → reconcile re-applies effects, exactly one zen rule | T2, T4 | T4 |
-| E2E-8 Reboot broadcast in FOCUS → effects re-applied | T2, T4 | T4 |
-| E2E-9 DND access revoked mid-session → no crash, degraded status, banner on Status | T2, T4, T6 | last of T4/T6 |
-| E2E-10 Zen rule turned off externally while FOCUS → re-asserted | T2, T4 | T4 |
+| E2E-7 Process death in FOCUS (cold start from a seeded FOCUS store) → reconcile re-applies effects, exactly one zen rule | T2, T4 | **T4** · `E2E7ProcessDeathInFocusTest` |
+| E2E-8 Reboot broadcast in FOCUS → effects re-applied | T2, T4 | **T4** · `E2E8RebootInFocusTest` |
+| E2E-9 DND access revoked mid-session → no crash, degraded status, banner on Status | T2, T4, T6 | T6 (T2, T4 merged) |
+| E2E-10 Zen rule turned off externally while FOCUS → re-asserted | T2, T4 | **T4** · `E2E10ZenRuleExternallyOffTest` |
 | E2E-11 Status screen reflects scans live (FREE → FOCUS → FREE), no exit control | T2, T3, T6 | T6 (T2, T3 merged) |
 | E2E-12 Setup: pair A and B via fake gateway → app routes to Status; reset blocked in FOCUS | T2, T3, T7 | T7 (T2, T3 merged) |
 | E2E-13 Setup: remove app from block list blocked in FOCUS, allowed in FREE | T2, T5, T7 | last of T5/T7 |
@@ -609,7 +609,7 @@ Cross-layer scenarios E2E-1…13 aren't T2's (T2 merges first in G2); later merg
 
 ---
 
-### T4 — System layer: DND + grayscale mode, fallback, permission checker · status: `review`
+### T4 — System layer: DND + grayscale mode, fallback, permission checker · status: `done`
 **Goal:** `FocusEffects` turns DND + grayscale on/off through one AutomaticZenRule, with an optional secure-settings fallback and a live permission checklist.
 **Owns:** `system/**` except `Contracts.kt` (incl. `system/di/SystemModule.kt`), `res/values/strings_system.xml`, `test/.../system/**`.
 **Depends on:** T1. **Decisions:** D-30–D-35, D-47, D-25.
@@ -687,9 +687,9 @@ The three `Placeholder*` files are deleted.
 * **Robolectric `PermissionActionsTest`:** action, data and extras of every intent (compared field-wise, R8); accessibility has the settings intent plus App info `package:io.github.fbarcalar.focustag`; the adb command equals the exact string with the real `applicationId`; each `OpenSettings` intent resolves against the matching activity registered in `ShadowPackageManager`. Real resolution on the Pixel is covered by MC-10/T7.
 * **Slice E2E `system/SystemSliceE2ETest`** (`FocusTagE2E`, `scanTagDirect`, so it works with the placeholder or the real engine): `grant(NOTIFICATION_POLICY)` + ACTIVATE → `assertZenRuleActive(true)`, not degraded; then DEACTIVATE → `assertZenRuleActive(false)`; without DND access, ACTIVATE → FOCUS, `assertEffectsDegraded(true)`, no crash; `revoke`/`grant(ACCESSIBILITY_SERVICE)` and `grant(WRITE_SECURE_SETTINGS)` flip the matching items of the real `PermissionChecker`. `@After` cancels the app scope (harness).
 * **Cross-layer E2E written by T4 at Integrate** (T4 merges after T2, so its merge completes these sets; E2E-1/4 need T3 and E2E-9 needs T6). One file each in `e2e/scenarios/`:
-  * `ProcessDeathInFocusTest` (E2E-7): `seedPreferences("focus_state")` with T2's store in FOCUS; then, still before touching the graph, set policy access directly on the shadow (`grant()` would touch the graph via `refresh()`) and add one rule built with `ZenRuleSpec(app).newRule()` in state FALSE (the leftover of the "previous process"); `startApp()` → `assertMode(FOCUS)`, `assertZenRuleActive(true)`, exactly one rule of ours, Focus notification shown.
-  * `RebootInFocusTest` (E2E-8): seed FOCUS the same way (no rule), set policy access on the shadow, `reboot()` → `assertZenRuleActive(true)`, exactly one rule, not degraded.
-  * `ZenRuleExternallyOffTest` (E2E-10): `grant(NOTIFICATION_POLICY)`, `startApp()`, `scanTagDirect(ACTIVATE)`, `turnZenRuleOffExternally()` → `assertZenRuleActive(true)`, exactly one rule. A second `ZenRules.broadcastStatusChanged()`-style broadcast while the rule is active then leaves the stored `Condition` the same instance (as above), proving the real engine + real effects don't loop.
+  * `E2E7ProcessDeathInFocusTest` (E2E-7): `seedPreferences("focus_state")` with T2's store in FOCUS; then, still before touching the graph, set policy access directly on the shadow (`grant()` would touch the graph via `refresh()`) and add one rule built with `ZenRuleSpec(app).newRule()` in state FALSE (the leftover of the "previous process"); `startApp()` → `assertMode(FOCUS)`, `assertZenRuleActive(true)`, exactly one rule of ours, Focus notification shown.
+  * `E2E8RebootInFocusTest` (E2E-8): seed FOCUS the same way (no rule), set policy access on the shadow, `reboot()` → `assertZenRuleActive(true)`, exactly one rule, not degraded.
+  * `E2E10ZenRuleExternallyOffTest` (E2E-10): `grant(NOTIFICATION_POLICY)`, `startApp()`, `scanTagDirect(ACTIVATE)`, `turnZenRuleOffExternally()` → `assertZenRuleActive(true)`, exactly one rule. A second `ZenRules.broadcastStatusChanged()`-style broadcast while the rule is active then leaves the stored `Condition` the same instance (as above), proving the real engine + real effects don't loop.
 
 ##### S7. Risks / open questions
 
@@ -709,6 +709,7 @@ The three `Placeholder*` files are deleted.
 * `SystemFocusEffects.enable()` applies the fallback before the zen rule. The order has no observable effect.
 * **Not done from S6:** there are no `ShadowPackageManager` resolution assertions for the intents: registering an activity for each intent only to resolve it again proves nothing. Intents are checked field by field, and real resolution is MC-10/T7. The revocation race *is* tested (`ZenRuleControllerRevocationTest`, a custom shadow that reports access as granted while `getAutomaticZenRules` throws). `ZenRuleController` is stateless and isn't a `@Singleton`; `SystemFocusEffects` holds the mutex.
 * **For integration:** E2E-7 must build its leftover rule with `ZenRuleSpec(app).newRule()` (condition id `focustag://zen/focus`, config activity in our package), or the controller won't adopt it. The DND-access broadcast and the accessibility observer are owned by `PermissionChangeSignals`. T2 needs only the zen broadcasts for D-34.
+* **Integrate (as built):** rebased on T2 and T3. Scenarios E2E-1/4/7/8/10 live in `e2e/scenarios/E2E<n>…Test.kt` (named like T3's). Verified against the real engine: `FocusStartHook` re-asserts on an external switch-off, and a zen broadcast while the rule is on leaves the stored condition untouched (E2E-10), so there is no re-assert loop. E2E-9 now waits only for T6.
 
 ---
 
