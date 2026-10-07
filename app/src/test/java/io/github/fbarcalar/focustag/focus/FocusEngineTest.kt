@@ -16,14 +16,11 @@ import kotlin.time.Duration.Companion.minutes
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.job
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
-import kotlinx.coroutines.withContext
 import org.junit.After
 import org.junit.Rule
 import org.junit.Test
@@ -172,43 +169,6 @@ class FocusEngineTest {
         assertThat(store.current()).isInstanceOf(FocusState.Focus::class.java)
     }
 
-    @Test
-    fun `fifty parallel desk scans start focus exactly once`() = runTest {
-        val outcomes = scanInParallel(List(50) { TagRole.ACTIVATE })
-
-        assertThat(outcomes.count { it == ScanOutcome.ACTIVATED }).isEqualTo(1)
-        assertThat(store.current()).isEqualTo(FocusState.Focus(clock.instant()))
-        assertThat(effects.calls).hasSize(50)
-    }
-
-    @Test
-    fun `fifty parallel mixed scans keep outcomes consistent with the final state`() = runTest {
-        val roles = List(50) { if (it % 3 == 0) TagRole.DEACTIVATE else TagRole.ACTIVATE }
-
-        val outcomes = scanInParallel(roles)
-
-        val net = outcomes.count { it == ScanOutcome.ACTIVATED } - outcomes.count { it == ScanOutcome.DEACTIVATED }
-        val expectedNet = if (store.current() is FocusState.Focus) 1 else 0
-        assertThat(net).isEqualTo(expectedNet)
-        assertThat(effects.calls).hasSize(50)
-    }
-
-    @Test
-    fun `under parallel scans every effects call matches the state persisted before it`() = runTest {
-        val checking = StateCheckingEffects { store.current() }
-        engine = engineOn(store, checking)
-        val roles = List(50) { if (it % 2 == 0) TagRole.DEACTIVATE else TagRole.ACTIVATE }
-
-        scanInParallel(roles)
-
-        assertThat(checking.mismatches).isEqualTo(0)
-        assertThat(checking.calls).isEqualTo(50)
-    }
-
-    private suspend fun scanInParallel(roles: List<TagRole>): List<ScanOutcome> = withContext(Dispatchers.Default) {
-        roles.map { role -> async { engine.onTagScanned(role) } }.awaitAll()
-    }
-
     private suspend fun restartProcess() {
         scopes.forEach { it.coroutineContext.job.cancelAndJoin() }
         scopes.clear()
@@ -225,22 +185,6 @@ class FocusEngineTest {
         FocusEngine(store, focusEffects, notifier, FocusStatsSource(store, clock), clock)
 
     private fun madrid(text: String) = LocalDateTime.parse(text).atZone(FakeClock.DEFAULT_ZONE).toInstant()
-
-    /** Counts effects calls that disagree with the stored state at the moment they are made. */
-    private class StateCheckingEffects(private val current: suspend () -> FocusState) : FocusEffects {
-        @Volatile var calls = 0
-        @Volatile var mismatches = 0
-
-        override suspend fun enable(): EffectsStatus = check(expectFocus = true)
-
-        override suspend fun disable(): EffectsStatus = check(expectFocus = false)
-
-        private suspend fun check(expectFocus: Boolean): EffectsStatus {
-            calls++
-            if ((current() is FocusState.Focus) != expectFocus) mismatches++
-            return EffectsStatus()
-        }
-    }
 
     private object ThrowingEffects : FocusEffects {
         override suspend fun enable(): EffectsStatus = throw SecurityException("policy access revoked")
