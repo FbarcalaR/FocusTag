@@ -713,7 +713,7 @@ The three `Placeholder*` files are deleted.
 
 ---
 
-### T5 — Blocker: decision logic, accessibility service, blocking screen, app list · status: `in-progress`
+### T5 — Blocker: decision logic, accessibility service, blocking screen, app list · status: `review`
 **Goal:** While FOCUS, opening a blocked app immediately shows a blocking screen and returns the user home.
 **Owns:** `blocker/**` except `Contracts.kt` (incl. `blocker/di/BlockerModule.kt`, `FocusAccessibilityService.kt`, `BlockingActivity.kt`, `ui` of the blocking screen inside `blocker/ui/`), `res/values/strings_blocker.xml`, `test/.../blocker/**`.
 **Depends on:** T1. **Decisions:** D-20–D-25.
@@ -769,6 +769,15 @@ Android assumptions: the system binds the service with `BIND_ACCESSIBILITY_SERVI
 * Real E2E-6 path: scanning Tag A shows the translucent `NfcTriggerActivity` (our package) over the blocked app. Its `WINDOW_STATE_CHANGED` replaces the remembered list with `[own]`, but the `WINDOWS_CHANGED` that follows lists both windows, and when the trigger finishes the app becomes the active window, so either the re-evaluation on the FOCUS emission or the `rootInActiveWindow` check blocks it. The harness drives the simpler `openApp` → scan order (R6).
 * `remove` checks the mode then edits (not atomic with a concurrent FREE→FOCUS scan); the window is milliseconds and the outcome is only that a removal slips through at the exact transition. Accepted (KISS).
 * No contract change needed. The blocking screen's label lookup uses the non-contract `InstalledAppsRepository.label` inside the layer.
+
+##### S4. Implementation notes (T5, as built)
+
+* `ForegroundAppGuard` is built by a Dagger `@AssistedFactory` (`ForegroundAppGuard.Factory.create(launcher, activeWindow)`), where `ActiveWindow` is a `fun interface` next to `BlockScreenLauncher`, so `start(scope)` takes only the scope. Instead of a nullable "not loaded" input, the guard starts from `FREE` + empty list, which blocks nothing until the store emits (same behaviour). An empty package list (e.g. `WINDOWS_CHANGED` with no app window) is ignored, so it never erases the remembered app.
+* `BlockListStore.createDataStore(scope, file)` builds the DataStore with the corruption handler; `BlockerModule` and the tests share it.
+* **Threading change vs S1:** the service scope is a child of the app scope *on its background dispatcher*, not `Main.immediate`. With Main, `cancelApplicationScope` (a `runBlocking` on the Robolectric main thread) deadlocked: the collector's cancellation had to be dispatched to the blocked main looper. `ForegroundAppGuard.onForeground` and its input handler are `@Synchronized` instead; `startActivity` and `rootInActiveWindow` are safe off the main thread.
+* Hilt field qualifiers in the service need `@field:ApplicationScope`; constructor parameters use `@param:`.
+* Tests: 65 in `test/.../blocker/**` (decider 6, relaunch guard 4, guard 14, store 5, apps 8, resolver 7, service 4, activity 6, screen 4, slice E2E 7). The Hilt tests drive state through the graph's `FocusController`, so they keep working once T2 replaces the placeholder engine.
+* For integration (E2E-5, written by T5 after T2 merges): use `graph.blockListRepository().add(pkg)` then `scanTag`/`scanTagDirect`; a second block of the same package in one scenario needs `advanceClock(≥ 500 ms)`.
 
 ---
 
