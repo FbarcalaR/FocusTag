@@ -407,7 +407,7 @@ Assumption for E2E-6 (handed to T5): the service remembers the last foreground p
 
 ---
 
-### T2 — Focus core: state machine, store, engine, boot · status: `in-progress`
+### T2 — Focus core: state machine, store, engine, boot · status: `review`
 **Goal:** Correct, idempotent FREE/FOCUS logic that persists across kills and reboots and drives the effects.
 **Owns:** `focus/**` except `Contracts.kt` (incl. `focus/di/FocusModule.kt`, `focus/boot/BootReceiver.kt`, `focus/notification/FocusNotifier.kt`), `res/values/strings_focus.xml`, `res/drawable/ic_focus_notification.xml`, `test/.../focus/**`.
 **Depends on:** T1. **Decisions:** D-34, D-40–D-45.
@@ -521,6 +521,14 @@ Cross-layer scenarios E2E-1…13 aren't T2's (T2 merges first in G2); later merg
 * `goAsync` budget is ~10 s; reconcile is a few binder calls, so no timeout wrapper (YAGNI).
 * Robolectric delivering `BOOT_COMPLETED` to a Hilt `@AndroidEntryPoint` manifest receiver under `HiltTestApplication` is assumed (the harness self-test already sends it). If it fails, `BootReceiverTest` creates the receiver directly and calls `onReceive`.
 * The harness's `@After` cancels the app scope while a `goAsync` coroutine may still run; the `finally { finish() }` makes that safe.
+
+##### F10. Implementation notes (T2, as built)
+
+* `FocusStartHook` depends on `FocusStateReader.state` (the contract) instead of `FocusStateStore`, so its test runs on `FakeFocusEngine`; the behaviour is the same.
+* `LocalDate.ofInstant` needs API 34 (minSdk is 33), so `stats/DailyTotals.kt` has `localDateOf(instant, zone)` (`atZone(zone).toLocalDate()`), used everywhere.
+* `NotificationManager.AUTOMATIC_RULE_STATUS_ACTIVATED` is API 35. It is an inlined constant, so `@SuppressLint("InlinedApi")` applies; on API 33/34 the system never sends that status.
+* The engine doesn't log the `SecurityException` it maps (no `android.util.Log`, so it stays a plain JVM unit).
+* Test helpers `focus/FocusNotifications.kt` (`focusNotificationShown`, `clearNotifications`) are available to the cross-layer E2E scenarios that check the D-44 notification (E2E-1, E2E-7, E2E-8). `BootReceiverTest` extends `FocusTagE2E`, using it only as a Hilt test base.
 
 ---
 
