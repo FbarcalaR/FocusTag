@@ -609,7 +609,7 @@ Cross-layer scenarios E2E-1…13 aren't T2's (T2 merges first in G2); later merg
 
 ---
 
-### T4 — System layer: DND + grayscale mode, fallback, permission checker · status: `in-progress`
+### T4 — System layer: DND + grayscale mode, fallback, permission checker · status: `review`
 **Goal:** `FocusEffects` turns DND + grayscale on/off through one AutomaticZenRule, with an optional secure-settings fallback and a live permission checklist.
 **Owns:** `system/**` except `Contracts.kt` (incl. `system/di/SystemModule.kt`), `res/values/strings_system.xml`, `test/.../system/**`.
 **Depends on:** T1. **Decisions:** D-30–D-35, D-47, D-25.
@@ -700,6 +700,15 @@ The three `Placeholder*` files are deleted.
 * **R-T4-5** Alarms are allowed through the mode (D-30 note); everything else is blocked. MC-06 checks both. Adopted rules aren't updated, so a rule created by an earlier build keeps its old policy until the user deletes the mode (none exists yet, since T4 is the first build that creates rules).
 * **R-T4-7** Loop safety when the re-assert doesn't stick (`NotApplied`): the next reconcile tries FALSE→TRUE again. That only loops if the OS broadcasts for a request it then ignores; a no-op state change sends nothing. MC-07 records it, and T2's `conflate()` bounds the rate.
 * **R-T4-6** `system` references `MainActivity` (T1, app root) for the config activity. It's a class reference, not an edit, and it's compile-checked.
+
+##### S8. Implementation notes (T4, as built)
+
+* The SDK gate lives in its own file, `zen/ZenSupport.kt` (`zenRulesSupported()` / `zenRulesSupportedOn(sdkInt)`). Putting it in `ZenRuleSpec.kt` made the JVM test load `Uri` statics.
+* Test-only helpers: `system/zen/ZenTestSupport` (OS-side rule access plus the shadow's state-map read for the same-instance checks) and `system/grayscale/SystemStoreRule` (a temp-dir DataStore that can be closed and reopened to simulate process death).
+* `AndroidPermissionChecker` builds the `PermissionAction`s once. `Intent` has no structural `equals`, so fresh intents would turn every `refresh()` into a new `StateFlow` emission.
+* `SystemFocusEffects.enable()` applies the fallback before the zen rule. The order has no observable effect.
+* **Not done from S6:** (1) The "access revoked between the check and the call" test is dropped. The shadow uses one flag for both the check and the enforcement, so the race can't be reproduced without mocks. The `catch` is a single line in `whenAccessible`. (2) There are no `ShadowPackageManager` resolution assertions for the intents: registering an activity for each intent only to resolve it again proves nothing. Intents are checked field by field, and real resolution is MC-10/T7.
+* **For integration:** E2E-7 must build its leftover rule with `ZenRuleSpec(app).newRule()` (condition id `focustag://zen/focus`, config activity in our package), or the controller won't adopt it. The DND-access broadcast and the accessibility observer are owned by `PermissionChangeSignals`. T2 needs only the zen broadcasts for D-34.
 
 ---
 

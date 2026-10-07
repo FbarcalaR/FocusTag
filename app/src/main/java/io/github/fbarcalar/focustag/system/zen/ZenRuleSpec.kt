@@ -10,13 +10,14 @@ import android.service.notification.Condition
 import android.service.notification.ZenDeviceEffects
 import android.service.notification.ZenPolicy
 import androidx.annotation.RequiresApi
+import androidx.core.net.toUri
 import dagger.hilt.android.qualifiers.ApplicationContext
 import io.github.fbarcalar.focustag.MainActivity
 import io.github.fbarcalar.focustag.R
 import javax.inject.Inject
 
 /** Identifies our rule; not user-editable (PLAN S4). */
-val ZEN_CONDITION_ID: Uri = Uri.parse("focustag://zen/focus")
+val ZEN_CONDITION_ID: Uri = "focustag://zen/focus".toUri()
 
 /** The shape of our AutomaticZenRule: DND that lets only alarms through, plus grayscale. */
 class ZenRuleSpec @Inject constructor(@ApplicationContext private val context: Context) {
