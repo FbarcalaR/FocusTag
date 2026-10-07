@@ -729,7 +729,7 @@ The three `Placeholder*` files are deleted.
 
 ---
 
-### T6 — Status screen · status: `in-progress`
+### T6 — Status screen · status: `review`
 **Goal:** Clear FOCUS / FREE TIME display with timers, hint and a permission warning, and no way to exit.
 **Owns:** `ui/status/**`, `res/values/strings_status.xml`, `test/.../ui/status/**`.
 **Depends on:** T1 (contracts), merged after T2 & T4 so it runs against real bindings. **Decisions:** D-45, D-46.
@@ -783,6 +783,14 @@ The three `Placeholder*` files are deleted.
 * T7 may also name permissions in `strings_setup.xml`; duplicate wording across two owned files is accepted over a shared T1 resource (which would need a T1 edit).
 * The FOCUS ticker leaves a delayed message on the main looper; Robolectric's paused-looper idle runs only due tasks, so `waitForIdle`/`eventually` do not spin on it (and tests that need a tick advance the looper explicitly, U4).
 * `LifecycleResumeEffect` calls `refresh()` also on the first composition; `refresh()` is cheap and synchronous (S2), so no guard.
+
+##### U6. Implementation notes (T6, as built)
+
+* Built as planned (U1–U4). `LifecycleResumeEffect` is keyed on the ViewModel instance. Previews use `FocusTagTheme(dynamicColor = false)` so they render the same everywhere.
+* With both effects failed, the notice lists both messages in one tap target (enum order).
+* `StatusTestData.kt` (test helpers: JVM-safe `PermissionItem` with an `AdbGrant` action, `readyState(...)`) is shared by the status tests.
+* E2E-11 needed no fallback for U5's first risk: the compose rule keeps finding `MainActivity` while `NfcTriggerActivity` runs.
+* **For T1/T8:** `R.string.title_status` (T1's `strings.xml`) is now unused (lint `UnusedResources` warning); it was only used by the placeholder. Not removed here because the file is T1-owned.
 
 ---
 
