@@ -102,8 +102,8 @@ E2E tests are **not** a final phase. T1 ships an E2E harness: `test/.../e2e/Focu
 | E2E-9 DND access revoked mid-session → no crash, degraded status, banner on Status | T2, T4, T6 | **T6** · `E2E9DndRevokedMidSessionTest` |
 | E2E-10 Zen rule turned off externally while FOCUS → re-asserted | T2, T4 | **T4** · `E2E10ZenRuleExternallyOffTest` |
 | E2E-11 Status screen reflects scans live (FREE → FOCUS → FREE), no exit control | T2, T3, T6 | **T6** · `E2E11StatusReflectsScansTest` |
-| E2E-12 Setup: pair A and B via fake gateway → app routes to Status; reset blocked in FOCUS | T2, T3, T7 | T7 (T2, T3 merged) |
-| E2E-13 Setup: remove app from block list blocked in FOCUS, allowed in FREE | T2, T5, T7 | last of T5/T7 |
+| E2E-12 Setup: pair A and B via fake gateway → app routes to Status; reset blocked in FOCUS | T2, T3, T7 | **T7** · `E2E12SetupPairingTest` |
+| E2E-13 Setup: remove app from block list blocked in FOCUS, allowed in FREE | T2, T5, T7 | **T7** · `E2E13BlockListRemovalGatedTest` |
 
 Merges now follow readiness, not the G2 order in §4 (T2, then T3). "Written by" names the task that wrote the scenario (in bold), or the task expected to complete its set.
 
@@ -849,7 +849,7 @@ Android assumptions: the system binds the service with `BIND_ACCESSIBILITY_SERVI
 
 ---
 
-### T7 — Setup screen · status: `review`
+### T7 — Setup screen · status: `done`
 **Goal:** Pair/re-pair/reset tags, pick blocked apps, see and fix permissions.
 **Owns:** `ui/setup/**`, `res/values/strings_setup.xml`, `test/.../ui/setup/**`.
 **Depends on:** T1 (contracts), merged after T3, T4, T5. **Decisions:** D-14, D-25, D-33, D-45.
@@ -952,7 +952,8 @@ Reader mode is **on whenever the Setup screen is RESUMED and NFC is ENABLED**; t
 * `SetupDestinationTest` doesn't `@BindValue` a `FakePermissionChecker` (that needs `@UninstallModules(SystemModule)`, which also removes T4's other bindings). It proves the ON_RESUME re-check with the real checker instead: deny `POST_NOTIFICATIONS`, grant it, pause/resume → the row's "Allow" button disappears.
 * Robolectric's default screen is 320×470 px, so UI tests and E2E-12 `performScrollTo()` before clicking anything below the first card.
 * The pairing VM tests share `TagPairingFixture` and are split into `TagPairingViewModelTest` (writes, results) and `TagPairingSessionTest` (dismiss, timeout, NFC, FOCUS gating) to respect the file-size limit. They reuse T3's test fake `nfc/InMemoryPairingRepository` (read-only use).
-* E2E-12 is `e2e/scenarios/E2E12SetupPairingTest.kt`. E2E-13 is not written yet (T5 not merged); the spec in P7 stands for whichever of T5/T7 merges last.
+* E2E-12 is `e2e/scenarios/E2E12SetupPairingTest.kt`.
+* **Integrate (as built):** rebased on T1–T6 (clean). Checked against the real T5 `BlockListStore`/`InstalledAppsRepository` and T6's Status screen (its top-bar Settings icon still carries `action_open_setup`, so E2E-12's Status marker holds). E2E-13 is `e2e/scenarios/E2E13BlockListRemovalGatedTest.kt`: a launcher app registered in `ShadowPackageManager` is blocked through the Setup UI in FREE; in FOCUS its row is checked and disabled, a tap changes nothing, and `openApp` still shows the blocking screen; back in FREE, unchecking removes it. Lazy-list scrolling in tests targets `hasScrollToIndexAction()`, because the search field is a second scrollable node.
 
 ---
 
