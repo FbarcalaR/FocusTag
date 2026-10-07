@@ -193,6 +193,18 @@ class FocusEngineTest {
         assertThat(effects.calls).hasSize(50)
     }
 
+    @Test
+    fun `under parallel scans every effects call matches the state persisted before it`() = runTest {
+        val checking = StateCheckingEffects { store.current() }
+        engine = engineOn(store, checking)
+        val roles = List(50) { if (it % 2 == 0) TagRole.DEACTIVATE else TagRole.ACTIVATE }
+
+        scanInParallel(roles)
+
+        assertThat(checking.mismatches).isEqualTo(0)
+        assertThat(checking.calls).isEqualTo(50)
+    }
+
     private suspend fun scanInParallel(roles: List<TagRole>): List<ScanOutcome> = withContext(Dispatchers.Default) {
         roles.map { role -> async { engine.onTagScanned(role) } }.awaitAll()
     }
@@ -213,6 +225,22 @@ class FocusEngineTest {
         FocusEngine(store, focusEffects, notifier, FocusStatsSource(store, clock), clock)
 
     private fun madrid(text: String) = LocalDateTime.parse(text).atZone(FakeClock.DEFAULT_ZONE).toInstant()
+
+    /** Counts effects calls that disagree with the stored state at the moment they are made. */
+    private class StateCheckingEffects(private val current: suspend () -> FocusState) : FocusEffects {
+        @Volatile var calls = 0
+        @Volatile var mismatches = 0
+
+        override suspend fun enable(): EffectsStatus = check(expectFocus = true)
+
+        override suspend fun disable(): EffectsStatus = check(expectFocus = false)
+
+        private suspend fun check(expectFocus: Boolean): EffectsStatus {
+            calls++
+            if ((current() is FocusState.Focus) != expectFocus) mismatches++
+            return EffectsStatus()
+        }
+    }
 
     private object ThrowingEffects : FocusEffects {
         override suspend fun enable(): EffectsStatus = throw SecurityException("policy access revoked")
