@@ -8,14 +8,19 @@ import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
+import dagger.multibindings.IntoSet
 import io.github.fbarcalar.focustag.di.ApplicationScope
 import io.github.fbarcalar.focustag.di.IoDispatcher
 import io.github.fbarcalar.focustag.focus.FocusController
 import io.github.fbarcalar.focustag.focus.FocusEngine
+import io.github.fbarcalar.focustag.focus.AppStartHook
 import io.github.fbarcalar.focustag.focus.FocusReconciler
+import io.github.fbarcalar.focustag.focus.FocusStartHook
 import io.github.fbarcalar.focustag.focus.FocusStateReader
 import io.github.fbarcalar.focustag.focus.notification.AndroidFocusNotifier
 import io.github.fbarcalar.focustag.focus.notification.FocusNotifier
+import io.github.fbarcalar.focustag.focus.reassert.BroadcastZenChangeSignals
+import io.github.fbarcalar.focustag.focus.reassert.ZenChangeSignals
 import io.github.fbarcalar.focustag.focus.store.FocusStateStore
 import javax.inject.Singleton
 import kotlinx.coroutines.CoroutineDispatcher
@@ -36,6 +41,13 @@ interface FocusModule {
 
     @Binds
     fun focusNotifier(notifier: AndroidFocusNotifier): FocusNotifier
+
+    @Binds
+    fun zenChangeSignals(signals: BroadcastZenChangeSignals): ZenChangeSignals
+
+    @Binds
+    @IntoSet
+    fun focusStartHook(hook: FocusStartHook): AppStartHook
 
     companion object {
         @Provides
