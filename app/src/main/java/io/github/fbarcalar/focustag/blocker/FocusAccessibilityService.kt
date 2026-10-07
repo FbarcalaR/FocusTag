@@ -27,11 +27,11 @@ class FocusAccessibilityService : AccessibilityService() {
 
     override fun onCreate() {
         super.onCreate()
-        // A child of the app scope (and its background dispatcher), so ending the process also ends
-        // this collector without needing the main thread, which a blocked test thread may hold.
+        // A child of the app scope, so the collector also ends with the process-wide scope; it runs on
+        // that scope's background dispatcher and hands each change to the main thread.
         serviceScope = CoroutineScope(appScope.coroutineContext + SupervisorJob(appScope.coroutineContext.job))
         guard = guardFactory.create(::showBlockingScreen) { rootInActiveWindow?.packageName?.toString() }
-        guard.start(serviceScope)
+        guard.start(serviceScope, mainExecutor)
     }
 
     override fun onDestroy() {

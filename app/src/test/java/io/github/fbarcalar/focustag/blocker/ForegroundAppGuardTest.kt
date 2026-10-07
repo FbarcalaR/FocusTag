@@ -26,7 +26,7 @@ class ForegroundAppGuardTest {
     )
 
     private fun test(body: suspend TestScope.() -> Unit) = runTest(UnconfinedTestDispatcher()) {
-        guard.start(backgroundScope)
+        guard.start(backgroundScope) { it.run() }
         body()
     }
 

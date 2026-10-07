@@ -5,6 +5,7 @@ import dagger.assisted.AssistedFactory
 import dagger.assisted.AssistedInject
 import io.github.fbarcalar.focustag.focus.FocusMode
 import io.github.fbarcalar.focustag.focus.FocusStateReader
+import java.util.concurrent.Executor
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.combine
@@ -15,8 +16,8 @@ import kotlinx.coroutines.flow.onEach
 /**
  * Decides when to show the blocking screen. It remembers the last foreground packages and
  * re-checks them whenever the mode or the block list changes, so an app that is already open when
- * FOCUS starts is blocked too (D-23). Window events (main thread) and state changes (background)
- * are serialised by synchronising on the guard.
+ * FOCUS starts is blocked too (D-23). Every evaluation runs on the main thread: window events
+ * arrive there, and state changes are handed over through the main-thread executor.
  */
 class ForegroundAppGuard @AssistedInject constructor(
     private val focusState: FocusStateReader,
@@ -30,21 +31,22 @@ class ForegroundAppGuard @AssistedInject constructor(
     private var inputs = Inputs(FocusMode.FREE, emptySet())
     private var lastForeground: List<String> = emptyList()
 
-    /** Follows the focus state and block list until [scope] is cancelled. */
-    fun start(scope: CoroutineScope): Job =
+    /**
+     * Follows the focus state and block list until [scope] is cancelled. The collector itself never
+     * needs [mainThread], so cancelling it never waits for the main thread.
+     */
+    fun start(scope: CoroutineScope, mainThread: Executor): Job =
         combine(focusState.state.map { it.mode }, blockList.blockedPackages, ::Inputs)
-            .onEach(::onInputs)
+            .onEach { newInputs -> mainThread.execute { onInputs(newInputs) } }
             .launchIn(scope)
 
     /** The user now sees [packages]; an empty list carries no information and is ignored. */
-    @Synchronized
     fun onForeground(packages: List<String>) {
         if (packages.isEmpty()) return
         lastForeground = packages
         blockFirstBlocked(packages)
     }
 
-    @Synchronized
     private fun onInputs(newInputs: Inputs) {
         inputs = newInputs
         recheck()
