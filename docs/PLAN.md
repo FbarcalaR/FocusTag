@@ -407,7 +407,7 @@ Assumption for E2E-6 (handed to T5): the service remembers the last foreground p
 
 ---
 
-### T2 — Focus core: state machine, store, engine, boot · status: `review`
+### T2 — Focus core: state machine, store, engine, boot · status: `done`
 **Goal:** Correct, idempotent FREE/FOCUS logic that persists across kills and reboots and drives the effects.
 **Owns:** `focus/**` except `Contracts.kt` (incl. `focus/di/FocusModule.kt`, `focus/boot/BootReceiver.kt`, `focus/notification/FocusNotifier.kt`), `res/values/strings_focus.xml`, `res/drawable/ic_focus_notification.xml`, `test/.../focus/**`.
 **Depends on:** T1. **Decisions:** D-34, D-40–D-45.
@@ -462,7 +462,7 @@ Resources: `res/values/strings_focus.xml` (channel name/description, notificatio
 * Midnight split happens **at session end** (`enterFree` adds `splitByDay(since, endedAt, zone)`) and **while live** (`focusStats` adds only today's slice of the live session). "Today" = `LocalDate.ofInstant(now, clock.zone)`; `DeviceClock` follows timezone changes.
 * `FocusStatsSource.stats = store.snapshot.flatMapLatest { snap -> ticks(snap).map { focusStats(snap, clock.instant(), clock.zone) } }.distinctUntilChanged()`:
   * FOCUS: `ticks` emits immediately and then every 1 s (`delay(1.seconds)`).
-  * FREE: emits immediately, then again at each next local midnight (`delay(until next midnight)`), so a FREE screen left open overnight drops yesterday's total. No per-second work while FREE.
+  * FREE: emits immediately, then again at the next local midnight or after an hour, whichever comes first (`delay(minOf(untilNextMidnight, 1.hours))`), so a FREE screen left open overnight drops yesterday's total and a clock or zone change is picked up within an hour. No per-second work while FREE.
 * Cold flow; it ticks only while collected (Status screen). Coroutine `delay` (virtual in `runTest`) drives the cadence; the value always comes from the injected `Clock`.
 
 ##### F4. Concurrency and re-assertion
@@ -481,7 +481,7 @@ Resources: `res/values/strings_focus.xml` (channel name/description, notificatio
 
 ##### F6. Boot receiver (D-43)
 
-`onReceive`: inject with `@Inject lateinit var` fields. Hilt injects a receiver inside the generated `Hilt_BootReceiver.onReceive`; the class extends `BroadcastReceiver()` in source (whose `onReceive` is abstract, so no `super` call compiles) and the Hilt Gradle plugin's bytecode transform inserts the injecting super call. `BootReceiverTest` running the real graph proves the fields are set. Return unless `intent.action` is `BOOT_COMPLETED` or `MY_PACKAGE_REPLACED` (this fixes lint `UnsafeProtectedBroadcastReceiver`). Otherwise `val pending = goAsync()`, then `appScope.launch { try { reconciler.reconcile() } finally { pending.finish() } }`, with an injected `FocusReconciler` and `@ApplicationScope CoroutineScope`. The reconcile that `FocusTagApp.onCreate` runs at boot as well is harmless (mutex + idempotent).
+`onReceive`: inject with `@Inject lateinit var` fields. Hilt injects a receiver inside the generated `Hilt_BootReceiver.onReceive`; the class extends `BroadcastReceiver()` in source (whose `onReceive` is abstract, so no `super` call compiles) and the Hilt Gradle plugin's bytecode transform inserts the injecting super call. `BootReceiverTest` running the real graph proves the fields are set. Return unless `intent.action` is `BOOT_COMPLETED` or `MY_PACKAGE_REPLACED` (this fixes lint `UnsafeProtectedBroadcastReceiver`). Otherwise `val pending = goAsync()`, then `appScope.launch { reconciler.reconcileLogged() }.invokeOnCompletion { pending.finish() }` (`reconcileLogged` logs any non-cancellation failure instead of letting it crash the process through the handler-less app scope), with an injected `FocusReconciler` and `@ApplicationScope CoroutineScope`. The reconcile that `FocusTagApp.onCreate` runs at boot as well is harmless (mutex + idempotent).
 
 ##### F7. Placeholder replacement
 
@@ -520,7 +520,7 @@ Cross-layer scenarios E2E-1…13 aren't T2's (T2 merges first in G2); later merg
 * **Disk errors:** an `IOException` from DataStore propagates out of `onTagScanned` (the contract promises only "no throw for permission problems"). T3's `NfcTriggerActivity` should treat a throw as "no change" feedback.
 * `goAsync` budget is ~10 s; reconcile is a few binder calls, so no timeout wrapper (YAGNI).
 * Robolectric delivering `BOOT_COMPLETED` to a Hilt `@AndroidEntryPoint` manifest receiver under `HiltTestApplication` is assumed (the harness self-test already sends it). If it fails, `BootReceiverTest` creates the receiver directly and calls `onReceive`.
-* The harness's `@After` cancels the app scope while a `goAsync` coroutine may still run; the `finally { finish() }` makes that safe.
+* The harness's `@After` cancels the app scope while a `goAsync` coroutine may still run, or before it starts; `invokeOnCompletion { finish() }` runs in both cases, so the pending result is always finished.
 
 ##### F10. Implementation notes (T2, as built)
 
