@@ -13,6 +13,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 /** Live checklist: re-evaluated on [refresh], on NFC changes and on OS permission signals. */
@@ -40,7 +41,7 @@ class AndroidPermissionChecker @Inject constructor(
     }
 
     override fun refresh() {
-        current.value = evaluate()
+        current.update { evaluate() }
     }
 
     private fun evaluate(): List<PermissionItem> = PermissionId.entries.map { id ->
