@@ -42,7 +42,7 @@ class TagPairingViewModel @Inject constructor(
 
     val uiState: StateFlow<TagsUiState> =
         combine(pairingRepository.pairings, nfcGateway.availability, locked, pairing) { pairings, nfc, locked, pairing ->
-            TagsUiState(tagCards(pairings, locked), nfc, locked, pairing)
+            TagsUiState(loaded = true, tagCards(pairings, locked), nfc, locked, pairing)
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), TagsUiState())
 
     init {

@@ -6,8 +6,9 @@ import io.github.fbarcalar.focustag.nfc.PairingResult
 import io.github.fbarcalar.focustag.nfc.TagPairing
 import io.github.fbarcalar.focustag.nfc.WriteFailure
 
-/** Everything the Tags section renders. */
+/** Everything the Tags section renders; [loaded] is false until pairings, NFC and mode are known. */
 data class TagsUiState(
+    val loaded: Boolean = false,
     val cards: List<TagCard> = tagCards(emptyMap(), locked = false),
     val nfc: NfcAvailability = NfcAvailability.ENABLED,
     val focusLocked: Boolean = false,

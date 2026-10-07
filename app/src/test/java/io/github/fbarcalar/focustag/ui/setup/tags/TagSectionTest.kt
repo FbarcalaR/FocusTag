@@ -27,10 +27,13 @@ class TagSectionTest {
 
     private fun text(id: Int, vararg args: Any) = composeRule.activity.getString(id, *args)
 
+    private val resetRequests = mutableListOf<TagRole>()
+
     private fun show(state: TagsUiState) {
-        composeRule.setContent { TagSection(state, onEvent = { events += it }) }
+        composeRule.setContent { TagSection(state.copy(loaded = true), onEvent = { events += it }, onRequestReset = { resetRequests += it }) }
         composeRule.waitForIdle()
     }
+
 
     @Test
     fun `cards show paired with the short uid and not paired`() {
@@ -61,15 +64,22 @@ class TagSectionTest {
     }
 
     @Test
-    fun `reset asks for confirmation before resetting`() {
+    fun `reset requests a confirmation instead of resetting`() {
         show(TagsUiState(cards = tagCards(pairedA, locked = false)))
 
         composeRule.onNodeWithText(text(R.string.setup_tag_reset)).performClick()
-        val beforeConfirm = events.toList()
-        composeRule.onAllNodesWithText(text(R.string.setup_reset_confirm))[1].performClick()
 
-        assertThat(beforeConfirm).isEmpty()
-        assertThat(events).containsExactly(TagEvent.Reset(TagRole.ACTIVATE))
+        assertThat(resetRequests).containsExactly(TagRole.ACTIVATE)
+        assertThat(events).isEmpty()
+    }
+
+    @Test
+    fun `nothing is shown before the state is loaded`() {
+        composeRule.setContent { TagSection(TagsUiState(), onEvent = { events += it }, onRequestReset = {}) }
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithText(text(R.string.setup_tag_pair)).assertDoesNotExist()
+        composeRule.onNodeWithText(text(R.string.setup_tag_unpaired)).assertDoesNotExist()
     }
 
     @Test
@@ -87,45 +97,5 @@ class TagSectionTest {
         show(TagsUiState(nfc = NfcAvailability.UNAVAILABLE))
 
         composeRule.onNodeWithText(text(R.string.setup_nfc_unavailable)).assertExists()
-    }
-
-    @Test
-    fun `waiting shows the hint and cancel dismisses`() {
-        show(TagsUiState(pairing = PairingState.WaitingForTag(TagRole.ACTIVATE)))
-
-        composeRule.onNodeWithText(text(R.string.setup_pairing_waiting)).assertExists()
-        composeRule.onNodeWithText(text(R.string.setup_cancel)).performClick()
-
-        assertThat(events).containsExactly(TagEvent.Dismiss)
-    }
-
-    @Test
-    fun `writing shows progress text and no buttons`() {
-        show(TagsUiState(pairing = PairingState.Writing(TagRole.ACTIVATE)))
-
-        composeRule.onNodeWithText(text(R.string.setup_pairing_writing)).assertExists()
-        composeRule.onNodeWithText(text(R.string.setup_cancel)).assertDoesNotExist()
-    }
-
-    @Test
-    fun `a failure shows its message and try again restarts the same role`() {
-        show(TagsUiState(pairing = PairingState.Failed(TagRole.DEACTIVATE, PairingError.VERIFY_FAILED)))
-
-        composeRule.onNodeWithText(text(R.string.setup_pairing_error_verify)).assertExists()
-        composeRule.onNodeWithText(text(R.string.setup_pairing_try_again)).performClick()
-        composeRule.onNodeWithText(text(R.string.setup_pairing_close)).performClick()
-
-        assertThat(events).containsExactly(TagEvent.StartPairing(TagRole.DEACTIVATE), TagEvent.Dismiss).inOrder()
-    }
-
-    @Test
-    fun `done shows a confirmation unless it completes setup`() {
-        show(TagsUiState(pairing = PairingState.Done(TagRole.ACTIVATE, completesSetup = false)))
-        val title = text(R.string.setup_tag_activate_title)
-
-        composeRule.onNodeWithText(text(R.string.setup_pairing_done, title)).assertExists()
-        composeRule.onNodeWithText(text(R.string.setup_pairing_ok)).performClick()
-
-        assertThat(events).containsExactly(TagEvent.Dismiss)
     }
 }

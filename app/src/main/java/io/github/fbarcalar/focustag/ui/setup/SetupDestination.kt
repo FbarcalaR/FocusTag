@@ -35,7 +35,7 @@ fun SetupDestination(onBack: (() -> Unit)?, onPairingComplete: () -> Unit) {
     val blockList by blockListViewModel.uiState.collectAsStateWithLifecycle()
     val launch = rememberPermissionActionLauncher(onResult = permissionsViewModel::refresh)
 
-    ReaderModeEffect(tags.nfc == NfcAvailability.ENABLED, tagsViewModel::enableReaderMode, tagsViewModel::disableReaderMode)
+    ReaderModeEffect(tags.loaded && tags.nfc == NfcAvailability.ENABLED, tagsViewModel::enableReaderMode, tagsViewModel::disableReaderMode)
     LifecycleResumeEffect(Unit) {
         permissionsViewModel.refresh()
         onPauseOrDispose {}

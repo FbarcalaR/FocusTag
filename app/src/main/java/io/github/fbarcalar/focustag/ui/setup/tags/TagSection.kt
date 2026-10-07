@@ -5,17 +5,11 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
@@ -26,23 +20,19 @@ import io.github.fbarcalar.focustag.nfc.NfcAvailability
 import io.github.fbarcalar.focustag.nfc.TagPairing
 import io.github.fbarcalar.focustag.ui.theme.FocusTagTheme
 
-/** Tag A / Tag B cards with Pair, Re-pair and Reset, plus the NFC state (PLAN P1). */
+/** Tag A / Tag B cards with Pair, Re-pair and Reset, plus the NFC state (PLAN P1); dialogs are in [TagDialogs]. */
 @Composable
-fun TagSection(state: TagsUiState, onEvent: (TagEvent) -> Unit, modifier: Modifier = Modifier) {
-    var confirmReset by rememberSaveable { mutableStateOf<TagRole?>(null) }
+fun TagSection(state: TagsUiState, onEvent: (TagEvent) -> Unit, onRequestReset: (TagRole) -> Unit, modifier: Modifier = Modifier) {
     Column(modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(stringResource(R.string.setup_tags_title), style = MaterialTheme.typography.titleMedium)
         Text(stringResource(R.string.setup_tags_caption), style = MaterialTheme.typography.bodySmall)
+        if (!state.loaded) return@Column
         NfcNotice(state.nfc, onOpenSettings = { onEvent(TagEvent.OpenNfcSettings) })
         val nfcOn = state.nfc == NfcAvailability.ENABLED
         state.cards.forEach { card ->
-            TagCardView(card, nfcOn, onPair = { onEvent(TagEvent.StartPairing(card.role)) }, onReset = { confirmReset = card.role })
+            TagCardView(card, nfcOn, onPair = { onEvent(TagEvent.StartPairing(card.role)) }, onReset = { onRequestReset(card.role) })
         }
     }
-    confirmReset?.let { role ->
-        ResetDialog(role, onConfirm = { onEvent(TagEvent.Reset(role)); confirmReset = null }, onDismiss = { confirmReset = null })
-    }
-    PairingDialog(state.pairing, onEvent)
 }
 
 @Composable
@@ -83,33 +73,22 @@ private fun TagButtons(card: TagCard, nfcOn: Boolean, onPair: () -> Unit, onRese
     }
 }
 
-@Composable
-private fun ResetDialog(role: TagRole, onConfirm: () -> Unit, onDismiss: () -> Unit) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.setup_reset_title, stringResource(role.titleRes()))) },
-        text = { Text(stringResource(R.string.setup_reset_message)) },
-        confirmButton = { TextButton(onClick = onConfirm) { Text(stringResource(R.string.setup_reset_confirm)) } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.setup_cancel)) } },
-    )
-}
-
 private val previewPairings = mapOf(TagRole.ACTIVATE to TagPairing(TagRole.ACTIVATE, "id", "04A1B2C3D4E5F6"))
 
 @Preview(showBackground = true)
 @Composable
 private fun TagSectionFreePreview() {
-    FocusTagTheme { TagSection(TagsUiState(cards = tagCards(previewPairings, locked = false)), onEvent = {}) }
+    FocusTagTheme { TagSection(TagsUiState(loaded = true, cards = tagCards(previewPairings, locked = false)), onEvent = {}, onRequestReset = {}) }
 }
 
 @Preview(showBackground = true)
 @Composable
 private fun TagSectionFocusPreview() {
-    FocusTagTheme { TagSection(TagsUiState(cards = tagCards(previewPairings, locked = true), focusLocked = true), onEvent = {}) }
+    FocusTagTheme { TagSection(TagsUiState(loaded = true, cards = tagCards(previewPairings, locked = true), focusLocked = true), onEvent = {}, onRequestReset = {}) }
 }
 
 @Preview(showBackground = true)
 @Composable
 private fun TagSectionNfcOffPreview() {
-    FocusTagTheme { TagSection(TagsUiState(nfc = NfcAvailability.DISABLED), onEvent = {}) }
+    FocusTagTheme { TagSection(TagsUiState(loaded = true, nfc = NfcAvailability.DISABLED), onEvent = {}, onRequestReset = {}) }
 }
