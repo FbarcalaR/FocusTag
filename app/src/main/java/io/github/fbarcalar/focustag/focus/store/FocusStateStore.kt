@@ -9,6 +9,7 @@ import androidx.datastore.preferences.core.emptyPreferences
 import io.github.fbarcalar.focustag.focus.FocusState
 import io.github.fbarcalar.focustag.focus.store.FocusPreferences.writeFocus
 import io.github.fbarcalar.focustag.focus.store.FocusPreferences.writeFree
+import io.github.fbarcalar.focustag.focus.stats.localDateOf
 import io.github.fbarcalar.focustag.focus.stats.plusSession
 import io.github.fbarcalar.focustag.focus.stats.retainFrom
 import java.io.File
@@ -63,6 +64,6 @@ class FocusStateStore(private val dataStore: DataStore<Preferences>) {
         )
 
         private fun firstRetainedDay(now: Instant, zone: ZoneId): LocalDate =
-            LocalDate.ofInstant(now, zone).minusDays(RETAINED_DAYS - 1)
+            localDateOf(now, zone).minusDays(RETAINED_DAYS - 1)
     }
 }

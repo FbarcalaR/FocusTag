@@ -10,8 +10,8 @@ import kotlin.time.toKotlinDuration
 /** Splits [start, end) into the local days it covers (D-42); empty when [end] is not after [start]. */
 fun splitByDay(start: Instant, end: Instant, zone: ZoneId): Map<LocalDate, Duration> {
     if (!end.isAfter(start)) return emptyMap()
-    val lastDay = LocalDate.ofInstant(end, zone)
-    return generateSequence(LocalDate.ofInstant(start, zone)) { it.plusDays(1) }
+    val lastDay = localDateOf(end, zone)
+    return generateSequence(localDateOf(start, zone)) { it.plusDays(1) }
         .takeWhile { !it.isAfter(lastDay) }
         .associateWith { day -> overlap(day, start, end, zone) }
         .filterValues { it.isPositive() }
@@ -36,3 +36,6 @@ private fun overlap(day: LocalDate, start: Instant, end: Instant, zone: ZoneId):
     val to = minOf(end, dayEnd)
     return JavaDuration.between(from, to).toKotlinDuration()
 }
+
+/** The local date of [instant] in [zone]; `LocalDate.ofInstant` needs API 34. */
+fun localDateOf(instant: Instant, zone: ZoneId): LocalDate = instant.atZone(zone).toLocalDate()

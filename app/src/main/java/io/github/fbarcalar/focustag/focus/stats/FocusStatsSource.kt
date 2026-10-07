@@ -23,7 +23,7 @@ import kotlinx.coroutines.flow.map
 
 /** Timers at [now]: the live session and today's total including its slice of today (D-42). */
 fun focusStats(snapshot: FocusSnapshot, now: Instant, zone: ZoneId): FocusStats {
-    val today = LocalDate.ofInstant(now, zone)
+    val today = localDateOf(now, zone)
     val stored = snapshot.dailyTotals[today] ?: Duration.ZERO
     return when (val state = snapshot.state) {
         FocusState.Free -> FocusStats(Duration.ZERO, stored)
@@ -55,7 +55,7 @@ class FocusStatsSource @Inject constructor(store: FocusStateStore, private val c
 
     private fun untilNextMidnight(): Duration {
         val now = clock.instant()
-        val midnight = LocalDate.ofInstant(now, clock.zone).plusDays(1).atStartOfDay(clock.zone).toInstant()
+        val midnight = localDateOf(now, clock.zone).plusDays(1).atStartOfDay(clock.zone).toInstant()
         return JavaDuration.between(now, midnight).toKotlinDuration()
     }
 }
