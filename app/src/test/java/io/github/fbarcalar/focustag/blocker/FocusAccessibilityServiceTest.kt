@@ -52,8 +52,9 @@ class FocusAccessibilityServiceTest {
     @Before
     fun setUp() {
         hiltRule.inject()
-        controller = Robolectric.buildService(FocusAccessibilityService::class.java).create()
+        // Stored before the service starts, like a list saved in an earlier session; see PLAN S4.
         runBlocking { blockList.add(BLOCKED) }
+        controller = Robolectric.buildService(FocusAccessibilityService::class.java).create()
     }
 
     @After
@@ -93,14 +94,32 @@ class FocusAccessibilityServiceTest {
     }
 
     @Test
+    fun `a live service blocks the remembered app when focus starts`() {
+        service.onAccessibilityEvent(windowStateChanged(BLOCKED))
+
+        startFocus()
+
+        assertThat(awaitStartedActivity().getStringExtra(EXTRA_BLOCKED_PACKAGE)).isEqualTo(BLOCKED)
+    }
+
+    @Test
     fun `a destroyed service blocks nothing when focus starts`() {
         service.onAccessibilityEvent(windowStateChanged(BLOCKED))
         controller.destroy()
 
         startFocus()
-        idleMainLooper()
+        idleFor(SETTLE_MILLIS)
 
         assertThat(shadowOf(app).nextStartedActivity).isNull()
+    }
+
+    /** Gives a (wrongly) live collector time to hand an emission to the main thread. */
+    private fun idleFor(millis: Long) {
+        val end = System.currentTimeMillis() + millis
+        while (System.currentTimeMillis() < end) {
+            idleMainLooper()
+            Thread.sleep(10)
+        }
     }
 
     private fun startFocus() {
@@ -130,5 +149,6 @@ class FocusAccessibilityServiceTest {
     private companion object {
         const val BLOCKED = "com.example.blocked"
         const val OTHER = "com.example.other"
+        const val SETTLE_MILLIS = 300L
     }
 }
