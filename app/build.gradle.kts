@@ -20,11 +20,29 @@ android {
         targetSdk {
             version = release(37)
         }
-        versionCode = 1
-        versionName = "0.1.0"
+        // CI release builds pass these (see .github/workflows/release.yml); local builds keep the defaults.
+        versionCode = providers.gradleProperty("focustag.versionCode").orNull?.toInt() ?: 1
+        versionName = providers.gradleProperty("focustag.versionName").orNull ?: "0.1.0"
+    }
+
+    // A fixed key lets each published APK install over the previous one. It comes from the
+    // environment so it never lives in the repo; without it Android's per-machine debug key is used.
+    val stableKeystore = providers.environmentVariable("FOCUSTAG_KEYSTORE_FILE").orNull
+    signingConfigs {
+        if (stableKeystore != null) {
+            create("stable") {
+                storeFile = file(stableKeystore)
+                storePassword = providers.environmentVariable("FOCUSTAG_KEYSTORE_PASSWORD").get()
+                keyAlias = providers.environmentVariable("FOCUSTAG_KEY_ALIAS").get()
+                keyPassword = providers.environmentVariable("FOCUSTAG_KEY_PASSWORD").get()
+            }
+        }
     }
 
     buildTypes {
+        debug {
+            if (stableKeystore != null) signingConfig = signingConfigs.getByName("stable")
+        }
         release {
             isMinifyEnabled = true
             isShrinkResources = true

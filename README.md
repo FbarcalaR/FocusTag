@@ -33,6 +33,40 @@ The script uses `ANDROID_HOME` if it is set, otherwise `/opt/android-sdk` if it 
 
 ## Install
 
+### From the Releases page (no computer needed)
+
+Every merge to `main` runs `.github/workflows/release.yml`. It runs the tests, builds the APK and publishes it as a GitHub Release named `FocusTag 1.0.<run number>`.
+
+1. On the phone, open the repository's **Releases** page (`https://github.com/FbarcalaR/FocusTag/releases/latest`).
+2. Under **Assets**, tap `focustag-1.0.<n>.apk` to download it.
+3. Open the download. The first time, Android asks you to allow your browser to **install unknown apps**; allow it and go back.
+4. Tap **Install** (or **Update**).
+
+**One-time signing setup (recommended).** Android only installs an update over an existing app if both are signed with the same key. Without a stable key, each release is signed with the build machine's throwaway debug key, and you must uninstall FocusTag before installing a newer release, losing its pairings, block list and permissions. To sign every release with the same key:
+
+1. Create a keystore once (on any computer with a JDK) and keep it, with its passwords, somewhere safe:
+
+   ```sh
+   keytool -genkeypair -keystore focustag.jks -alias focustag \
+     -keyalg RSA -keysize 4096 -validity 36500 -dname "CN=FocusTag"
+   base64 -w0 focustag.jks > focustag.jks.b64   # on macOS: base64 -i focustag.jks
+   ```
+
+2. In the repository, open **Settings → Secrets and variables → Actions → New repository secret** and add:
+
+   | Secret | Value |
+   |---|---|
+   | `FOCUSTAG_KEYSTORE_BASE64` | contents of `focustag.jks.b64` |
+   | `FOCUSTAG_KEYSTORE_PASSWORD` | the keystore password |
+   | `FOCUSTAG_KEY_ALIAS` | `focustag` |
+   | `FOCUSTAG_KEY_PASSWORD` | the key password (the same as the keystore password unless you chose a different one) |
+
+3. Uninstall any FocusTag build signed with a different key once, then install the next release. From then on, releases update in place.
+
+You can also start a release by hand from **Actions → Release → Run workflow**. The keystore is never committed; for a local build signed with it, set the same four names as environment variables, with `FOCUSTAG_KEYSTORE_FILE` pointing at the `.jks` file instead of the base64 secret.
+
+### With adb
+
 1. On the phone, enable **Developer options → USB debugging**, connect it and check that `adb devices` lists it.
 2. Install (or update in place):
 

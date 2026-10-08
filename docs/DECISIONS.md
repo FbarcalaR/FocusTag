@@ -70,3 +70,10 @@ Each entry has a one-line **decision** and a one-line **rationale**. When an ent
 | D-50 | **T1 freezes the cross-layer contracts** (interfaces + DTOs in `<layer>/Contracts.kt`) and ships a placeholder implementation plus a Hilt binding module per layer. Each layer task replaces only its own placeholder. Changing a contract needs approval from the orchestrator. | Every task branch then compiles and passes the full build on its own, so parallel groups never wait on each other's bindings. |
 | D-51 | T1 declares **all manifest components** (activities, service, receiver, intent filters, permissions, `<queries>`) and every `res/xml` config, pointing at stub classes. Resources are split per layer (`strings_<layer>.xml`). | The manifest and `strings.xml` would otherwise be merge-conflict hot spots shared by every task. |
 | D-52 | Integration branch = `claude/focustag-nfc-android-d75mvp` (this plays the role of "main" in the brief). Task branches are **local** worktrees (`task/Tn-*`) that are merged in and never pushed. | The session can only push to the designated branch. |
+
+## Distribution
+
+| ID | Decision | Rationale |
+|----|----------|-----------|
+| D-60 | **Each merge to `main` publishes a GitHub Release** (`.github/workflows/release.yml`) containing `focustag-1.0.<run>.apk`. The release ships the tested **debug** variant, with `versionCode` = the workflow run number. | The APK can be downloaded and installed straight from the phone. The debug variant is the build the whole test suite runs against; the release variant's R8 shrinking has never been exercised. Increasing version codes let each release install as an update. |
+| D-61 | **Optional stable signing key from repository secrets** (`FOCUSTAG_KEYSTORE_BASE64`, `…_PASSWORD`, `FOCUSTAG_KEY_ALIAS`, `FOCUSTAG_KEY_PASSWORD`), restored into a temp file on the runner. Without the secrets the workflow still publishes, signed with the runner's throwaway debug key, and logs a warning. | Android only updates in place when the signing key matches. The key never enters the repo. |
