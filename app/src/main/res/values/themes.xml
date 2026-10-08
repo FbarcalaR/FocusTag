@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- DayNight so the window background matches the system theme before Compose draws (no white flash). -->
+    <style name="Theme.FocusTag" parent="android:Theme.DeviceDefault.DayNight">
+        <item name="android:windowActionBar">false</item>
+        <item name="android:windowNoTitle">true</item>
+    </style>
+
+    <style name="Theme.FocusTag.Translucent" parent="android:Theme.Translucent.NoTitleBar">
+        <item name="android:windowAnimationStyle">@null</item>
+        <item name="android:windowNoTitle">true</item>
+    </style>
+</resources>

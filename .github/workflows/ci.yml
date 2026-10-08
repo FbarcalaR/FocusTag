@@ -1,0 +1,39 @@
+name: CI
+
+on:
+  push:
+    branches: [claude/focustag-nfc-android-d75mvp]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Cache Robolectric android-all jars
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository/org/robolectric
+          key: robolectric-${{ hashFiles('gradle/libs.versions.toml', 'app/src/test/resources/robolectric.properties') }}
+
+      - name: Install Android SDK
+        run: scripts/setup-android-sdk.sh
+
+      - name: Build, lint and test
+        run: ./gradlew assembleDebug lint test
+
+      - name: Upload reports
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reports
+          path: app/build/reports

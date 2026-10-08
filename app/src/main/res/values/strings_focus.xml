@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="focus_channel_name">Focus session</string>
+    <string name="focus_channel_description">Shown while a focus session is active.</string>
+    <string name="focus_notification_title">Focus active</string>
+    <string name="focus_notification_text">Scan the living-room tag to exit</string>
+</resources>

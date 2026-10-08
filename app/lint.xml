@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<lint>
+    <!-- Version bumps are deliberate (see docs/DECISIONS.md D-02); keep them as warnings. -->
+    <issue id="GradleDependency" severity="warning" />
+    <issue id="NewerVersionAvailable" severity="warning" />
+    <issue id="AndroidGradlePluginVersion" severity="warning" />
+</lint>
