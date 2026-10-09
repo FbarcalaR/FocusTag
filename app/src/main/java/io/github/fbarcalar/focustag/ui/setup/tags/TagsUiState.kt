@@ -1,6 +1,7 @@
 package io.github.fbarcalar.focustag.ui.setup.tags
 
 import io.github.fbarcalar.focustag.focus.TagRole
+import io.github.fbarcalar.focustag.nfc.LastTap
 import io.github.fbarcalar.focustag.nfc.NfcAvailability
 import io.github.fbarcalar.focustag.nfc.PairingResult
 import io.github.fbarcalar.focustag.nfc.TagPairing
@@ -13,6 +14,7 @@ data class TagsUiState(
     val nfc: NfcAvailability = NfcAvailability.ENABLED,
     val focusLocked: Boolean = false,
     val pairing: PairingState = PairingState.Idle,
+    val lastTap: LastTap? = null,
 )
 
 /** One role's card; the flags already include the FOCUS lock (D-45). */

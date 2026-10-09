@@ -9,6 +9,9 @@ enum class PermissionId {
     /** NFC is switched on. */
     NFC_ENABLED,
 
+    /** Android 16's per-app NFC tag setting lets tag taps reach FocusTag (D-63). */
+    NFC_TAG_INTENTS,
+
     /** Our accessibility service is enabled (D-20, D-25). */
     ACCESSIBILITY_SERVICE,
 

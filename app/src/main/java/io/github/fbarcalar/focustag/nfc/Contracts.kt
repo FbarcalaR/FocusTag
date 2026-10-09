@@ -3,6 +3,7 @@ package io.github.fbarcalar.focustag.nfc
 import android.app.Activity
 import android.content.Intent
 import io.github.fbarcalar.focustag.focus.TagRole
+import java.time.Instant
 import kotlinx.coroutines.flow.Flow
 
 /**
@@ -80,6 +81,12 @@ interface NfcGateway {
 
     /** Writes the URI record [uri] plus our AAR, then reads it back to verify (D-10). */
     suspend fun writeFocusTag(tag: NfcTagHandle, uri: String): WriteResult
+
+    /**
+     * False when the user has switched FocusTag off in Android 16's per-app NFC tag setting, so no
+     * tag tap reaches the app outside Setup (D-63). True where that setting doesn't exist.
+     */
+    fun tagIntentsAllowed(): Boolean
 }
 
 /** How a paired tag proves it is ours (D-12, D-62). */
@@ -130,6 +137,25 @@ sealed interface PairingResult {
 
     /** Writing failed for [reason]; the existing pairing is untouched. */
     data class WriteFailed(val reason: WriteFailure) : PairingResult
+}
+
+/**
+ * The latest tag tap FocusTag received outside Setup (D-63), shown in Setup so the user can tell a
+ * tap Android never delivered apart from one the app ignored.
+ *
+ * @property uidHex hardware UID of the tapped tag.
+ * @property at when it was tapped.
+ * @property recognisedAs the role it matched, or null when it was ignored.
+ */
+data class LastTap(val uidHex: String, val at: Instant, val recognisedAs: TagRole?)
+
+/** Remembers the [LastTap]. */
+interface TapLog {
+    /** The latest background tap, or null before the first one. */
+    val lastTap: Flow<LastTap?>
+
+    /** Replaces the remembered tap with [tap]. */
+    suspend fun record(tap: LastTap)
 }
 
 /** Stored pairings. */

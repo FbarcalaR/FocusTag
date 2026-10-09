@@ -25,6 +25,12 @@ class PermissionActionsTest {
     }
 
     @Test
+    fun `tag taps open android 16's nfc tag app setting, falling back to nfc settings`() {
+        assertThat(intentsOf(PermissionId.NFC_TAG_INTENTS).map { it.action })
+            .containsExactly("android.nfc.action.CHANGE_TAG_INTENT_PREFERENCE", Settings.ACTION_NFC_SETTINGS).inOrder()
+    }
+
+    @Test
     fun `accessibility opens its settings and then App info for restricted settings`() {
         val intents = intentsOf(PermissionId.ACCESSIBILITY_SERVICE)
 

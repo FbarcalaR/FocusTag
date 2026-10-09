@@ -9,6 +9,7 @@ import android.nfc.NdefMessage
 import android.nfc.NfcAdapter
 import android.nfc.Tag
 import android.nfc.tech.Ndef
+import android.os.Build
 import androidx.core.content.ContextCompat
 import androidx.core.content.IntentCompat
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -64,6 +65,15 @@ class AndroidNfcGateway @Inject constructor(
         val message = focusMessage(uri, context.packageName)
         val target = tag.tag.ndefTarget(message) ?: return WriteResult.Failed(WriteFailure.NOT_NDEF)
         return withContext(io) { target.use { TagWriteRules.write(it, message.byteArrayLength, uri) } }
+    }
+
+    override fun tagIntentsAllowed(): Boolean {
+        val current = adapter ?: return true
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.BAKLAVA && current.isTagIntentAppPreferenceSupported) {
+            current.isTagIntentAllowed
+        } else {
+            true
+        }
     }
 
     private fun currentAvailability(): NfcAvailability {

@@ -205,7 +205,7 @@ Use a transport, access or loyalty card you don't mind tapping. Nothing is writt
 |---|------|----------|--------|
 | 1 | In Setup (FREE), Re-pair or Pair **Tag B** and tap the card. | "This card can't store FocusTag data, but it can be paired by its ID. Tap the same card again to confirm." | |
 | 2 | Tap the same card again. | Paired; Tag B's card reads "Paired by ID only · …". If it says "This card changes its ID on every tap", this card can't be used; stop here. | |
-| 3 | Leave Setup, close the app, and tap Tag A, then the card. | FOCUS, then FREE TIME, each with its toast. | |
+| 3 | Leave Setup, close the app, and tap Tag A, then the card. | FOCUS, then FREE TIME, each with its toast. If nothing happens, reopen Setup: "Open from NFC tags" must be *Granted*, and "Last tap outside Setup" should show the card's ID. Note what it says. | |
 | 4 | In FOCUS, tap a different card (e.g. a bank card). | Nothing happens: no toast, still FOCUS. No app chooser appears (if one does, note which app also claims cards). | |
 | 5 | Reboot, unlock, tap the card while in FOCUS. | FREE TIME (card scans stay on after a reboot). | |
 | 6 | In Setup, re-pair Tag B with an NTAG sticker. Then tap a bank card with the app closed. | Nothing opens: card scans are off again once no card is paired by ID. | |

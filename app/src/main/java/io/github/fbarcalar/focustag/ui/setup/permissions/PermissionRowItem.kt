@@ -98,6 +98,7 @@ private fun PermissionItem.statusLineRes(): Int = when (status) {
 @StringRes
 private fun PermissionId.titleRes(): Int = when (this) {
     PermissionId.NFC_ENABLED -> R.string.setup_permission_nfc_title
+    PermissionId.NFC_TAG_INTENTS -> R.string.setup_permission_tag_intents_title
     PermissionId.ACCESSIBILITY_SERVICE -> R.string.setup_permission_accessibility_title
     PermissionId.NOTIFICATION_POLICY_ACCESS -> R.string.setup_permission_dnd_title
     PermissionId.POST_NOTIFICATIONS -> R.string.setup_permission_notifications_title
@@ -109,6 +110,7 @@ private fun PermissionId.titleRes(): Int = when (this) {
 @StringRes
 private fun PermissionId.whyRes(): Int = when (this) {
     PermissionId.NFC_ENABLED -> R.string.setup_permission_nfc_why
+    PermissionId.NFC_TAG_INTENTS -> R.string.setup_permission_tag_intents_why
     PermissionId.ACCESSIBILITY_SERVICE -> R.string.setup_permission_accessibility_why
     PermissionId.NOTIFICATION_POLICY_ACCESS -> R.string.setup_permission_dnd_why
     PermissionId.POST_NOTIFICATIONS -> R.string.setup_permission_notifications_why

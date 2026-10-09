@@ -5,6 +5,7 @@ import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -13,6 +14,8 @@ import io.github.fbarcalar.focustag.R
 import io.github.fbarcalar.focustag.focus.TagRole
 import io.github.fbarcalar.focustag.nfc.NfcAvailability
 import io.github.fbarcalar.focustag.nfc.TagPairing
+import io.github.fbarcalar.focustag.nfc.LastTap
+import java.time.Instant
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -97,5 +100,28 @@ class TagSectionTest {
         show(TagsUiState(nfc = NfcAvailability.UNAVAILABLE))
 
         composeRule.onNodeWithText(text(R.string.setup_nfc_unavailable)).assertExists()
+    }
+
+    @Test
+    fun `before any background tap it says none yet`() {
+        show(TagsUiState())
+
+        composeRule.onNodeWithText(text(R.string.setup_last_tap_none)).assertExists()
+    }
+
+    @Test
+    fun `the last background tap shows its uid and what it matched`() {
+        val at = Instant.parse("2026-10-09T10:42:00Z")
+        show(TagsUiState(lastTap = LastTap("5A3B9C21", at, TagRole.DEACTIVATE)))
+
+        composeRule.onNodeWithText("…3B:9C:21 at ", substring = true)
+            .assertTextContains(text(R.string.setup_tag_deactivate_title), substring = true)
+    }
+
+    @Test
+    fun `an ignored background tap is shown as not recognised`() {
+        show(TagsUiState(lastTap = LastTap("5A000000", Instant.EPOCH, recognisedAs = null)))
+
+        composeRule.onNodeWithText(text(R.string.setup_last_tap_unknown), substring = true).assertExists()
     }
 }

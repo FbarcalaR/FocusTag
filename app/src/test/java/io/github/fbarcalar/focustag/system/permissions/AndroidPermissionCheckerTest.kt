@@ -10,6 +10,7 @@ import com.google.common.truth.Truth.assertThat
 import io.github.fbarcalar.focustag.nfc.NfcAvailability
 import io.github.fbarcalar.focustag.system.PermissionId
 import io.github.fbarcalar.focustag.system.PermissionStatus
+import io.github.fbarcalar.focustag.system.missingRequired
 import io.github.fbarcalar.focustag.testing.FakeNfcGateway
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -47,15 +48,38 @@ class AndroidPermissionCheckerTest {
     }
 
     @Test
-    fun `nfc, accessibility, DND access and notifications are the required items`() {
+    fun `nfc, tag taps, accessibility, DND access and notifications are the required items`() {
         val required = checker.items.value.filter { it.required }.map { it.id }
 
         assertThat(required).containsExactly(
             PermissionId.NFC_ENABLED,
+            PermissionId.NFC_TAG_INTENTS,
             PermissionId.ACCESSIBILITY_SERVICE,
             PermissionId.NOTIFICATION_POLICY_ACCESS,
             PermissionId.POST_NOTIFICATIONS,
         )
+    }
+
+    @Test
+    fun `tag taps blocked for focus tag are a missing required item until allowed again`() {
+        nfc.tagIntents = false
+        checker.refresh()
+        val blocked = statusOf(PermissionId.NFC_TAG_INTENTS)
+        val missing = checker.items.value.missingRequired.map { it.id }
+
+        nfc.tagIntents = true
+        checker.refresh()
+
+        assertThat(blocked).isEqualTo(PermissionStatus.MISSING)
+        assertThat(missing).contains(PermissionId.NFC_TAG_INTENTS)
+        assertThat(statusOf(PermissionId.NFC_TAG_INTENTS)).isEqualTo(PermissionStatus.GRANTED)
+    }
+
+    @Test
+    fun `tag taps are unsupported on a phone without nfc`() {
+        nfc.availability.value = NfcAvailability.UNAVAILABLE
+
+        assertThat(statusOf(PermissionId.NFC_TAG_INTENTS)).isEqualTo(PermissionStatus.UNSUPPORTED)
     }
 
     @Test

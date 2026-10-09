@@ -19,6 +19,10 @@ data class RecordedWrite(val tag: NfcTagHandle, val uri: String)
 class FakeNfcGateway : NfcGateway {
     override val availability = MutableStateFlow(NfcAvailability.ENABLED)
 
+    /** What [tagIntentsAllowed] reports; tests flip it to simulate Android 16's per-app NFC tag setting. */
+    @Volatile
+    var tagIntents: Boolean = true
+
     private val reads = ArrayDeque<ScannedTag?>()
     private val writeResults = ArrayDeque<WriteResult>()
     private val recordedWrites = mutableListOf<RecordedWrite>()
@@ -48,6 +52,8 @@ class FakeNfcGateway : NfcGateway {
     override fun disableReaderMode(activity: Activity) {
         readerCallback = null
     }
+
+    override fun tagIntentsAllowed(): Boolean = tagIntents
 
     override suspend fun writeFocusTag(tag: NfcTagHandle, uri: String): WriteResult {
         recordedWrites += RecordedWrite(tag, uri)

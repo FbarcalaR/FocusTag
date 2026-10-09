@@ -6,6 +6,7 @@ import io.github.fbarcalar.focustag.focus.FocusController
 import io.github.fbarcalar.focustag.focus.ScanOutcome
 import io.github.fbarcalar.focustag.focus.TagRole
 import java.io.IOException
+import java.time.Clock
 import javax.inject.Inject
 import kotlinx.coroutines.flow.first
 
@@ -33,13 +34,15 @@ enum class ScanFeedback(@param:StringRes val message: Int) {
 class TagScanProcessor @Inject constructor(
     private val repository: PairingRepository,
     private val controller: FocusController,
+    private val tapLog: TapLog,
+    private val clock: Clock,
 ) {
     /** The feedback to show, or null when the scan is ignored (invalid tag, or the disk failed). */
     suspend fun process(scan: ScannedTag): ScanFeedback? = try {
-        when (val result = TagValidator.validate(scan, repository.pairings.first())) {
-            is TagScanResult.Valid -> ScanFeedback.of(result.role, controller.onTagScanned(result.role))
-            TagScanResult.Unknown, TagScanResult.UidMismatch, TagScanResult.Malformed -> null
-        }
+        val result = TagValidator.validate(scan, repository.pairings.first())
+        val role = (result as? TagScanResult.Valid)?.role
+        tapLog.record(LastTap(scan.uidHex, clock.instant(), role))
+        role?.let { ScanFeedback.of(it, controller.onTagScanned(it)) }
     } catch (_: IOException) {
         null
     }

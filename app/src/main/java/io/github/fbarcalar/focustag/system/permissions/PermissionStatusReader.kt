@@ -53,5 +53,11 @@ fun nfcStatus(availability: NfcAvailability): PermissionStatus = when (availabil
     NfcAvailability.UNAVAILABLE -> PermissionStatus.UNSUPPORTED
 }
 
+/** Tag taps can only be blocked on a phone with NFC; the setting itself exists from Android 16. */
+fun tagIntentStatus(availability: NfcAvailability, allowed: Boolean): PermissionStatus = when {
+    availability == NfcAvailability.UNAVAILABLE -> PermissionStatus.UNSUPPORTED
+    else -> statusOf(allowed)
+}
+
 private fun statusOf(granted: Boolean): PermissionStatus =
     if (granted) PermissionStatus.GRANTED else PermissionStatus.MISSING

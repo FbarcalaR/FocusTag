@@ -18,6 +18,11 @@ class PermissionActions @Inject constructor(@ApplicationContext context: Context
 
     fun actionFor(id: PermissionId): PermissionAction = when (id) {
         PermissionId.NFC_ENABLED -> openSettings(Intent(Settings.ACTION_NFC_SETTINGS))
+        PermissionId.NFC_TAG_INTENTS -> openSettings(
+            // `NfcAdapter.ACTION_CHANGE_TAG_INTENT_PREFERENCE` (API 36), spelled out to keep android.nfc in `nfc`.
+            Intent(ACTION_CHANGE_TAG_INTENT_PREFERENCE),
+            Intent(Settings.ACTION_NFC_SETTINGS),
+        )
         PermissionId.ACCESSIBILITY_SERVICE -> openSettings(
             Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS),
             // Sideloaded apps must "Allow restricted settings" in App info first (D-25).
@@ -42,4 +47,8 @@ class PermissionActions @Inject constructor(@ApplicationContext context: Context
     )
 
     private fun openSettings(vararg intents: Intent) = PermissionAction.OpenSettings(intents.toList())
+
+    private companion object {
+        const val ACTION_CHANGE_TAG_INTENT_PREFERENCE = "android.nfc.action.CHANGE_TAG_INTENT_PREFERENCE"
+    }
 }
