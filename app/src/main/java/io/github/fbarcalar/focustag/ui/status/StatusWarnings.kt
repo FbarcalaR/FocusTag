@@ -80,6 +80,7 @@ private fun effectMessage(effect: Effect): String = stringResource(
 private fun permissionName(id: PermissionId): String = stringResource(
     when (id) {
         PermissionId.NFC_ENABLED -> R.string.status_permission_nfc
+        PermissionId.NFC_TAG_INTENTS -> R.string.status_permission_tag_intents
         PermissionId.ACCESSIBILITY_SERVICE -> R.string.status_permission_accessibility
         PermissionId.NOTIFICATION_POLICY_ACCESS -> R.string.status_permission_dnd_access
         PermissionId.POST_NOTIFICATIONS -> R.string.status_permission_notifications

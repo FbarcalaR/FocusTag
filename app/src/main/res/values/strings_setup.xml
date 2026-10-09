@@ -12,6 +12,9 @@
     <string name="setup_tag_deactivate_role">Ends focus</string>
     <string name="setup_tag_paired">Paired · %1$s</string>
     <string name="setup_tag_paired_id_only">Paired by ID only · %1$s</string>
+    <string name="setup_last_tap_none">Last tap outside Setup: none yet. If tapping a paired tag never changes this, Android isn\'t passing taps to FocusTag.</string>
+    <string name="setup_last_tap">Last tap outside Setup: %1$s at %2$s · %3$s</string>
+    <string name="setup_last_tap_unknown">not recognised</string>
     <string name="setup_tag_unpaired">Not paired</string>
     <string name="setup_tag_pair">Pair</string>
     <string name="setup_tag_repair">Re-pair</string>
@@ -58,6 +61,8 @@
     <string name="setup_permission_copy">Copy</string>
     <string name="setup_permission_nfc_title">NFC</string>
     <string name="setup_permission_nfc_why">Needed to read your tags.</string>
+    <string name="setup_permission_tag_intents_title">Open from NFC tags</string>
+    <string name="setup_permission_tag_intents_why">Android can block an app from receiving tag taps. If FocusTag is blocked, your tags do nothing outside Setup.</string>
     <string name="setup_permission_accessibility_title">Accessibility service</string>
     <string name="setup_permission_accessibility_why">Shows the blocking screen when you open a blocked app.</string>
     <string name="setup_permission_accessibility_hint">Sideloaded app: if the switch is greyed out, open App info → ⋮ → Allow restricted settings first.</string>

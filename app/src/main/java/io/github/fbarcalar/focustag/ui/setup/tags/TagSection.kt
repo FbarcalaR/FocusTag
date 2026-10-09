@@ -10,6 +10,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
@@ -17,7 +18,11 @@ import androidx.compose.ui.unit.dp
 import io.github.fbarcalar.focustag.R
 import io.github.fbarcalar.focustag.focus.TagRole
 import io.github.fbarcalar.focustag.nfc.NfcAvailability
+import io.github.fbarcalar.focustag.nfc.LastTap
 import io.github.fbarcalar.focustag.nfc.TagPairing
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.time.format.FormatStyle
 import io.github.fbarcalar.focustag.ui.theme.FocusTagTheme
 
 /** Tag A / Tag B cards with Pair, Re-pair and Reset, plus the NFC state (PLAN P1); dialogs are in [TagDialogs]. */
@@ -32,8 +37,20 @@ fun TagSection(state: TagsUiState, onEvent: (TagEvent) -> Unit, onRequestReset: 
         state.cards.forEach { card ->
             TagCardView(card, nfcOn, onPair = { onEvent(TagEvent.StartPairing(card.role)) }, onReset = { onRequestReset(card.role) })
         }
+        Text(lastTapText(state.lastTap), style = MaterialTheme.typography.bodySmall)
     }
 }
+
+/** D-63: tells a tap Android never delivered apart from one FocusTag received and ignored. */
+@Composable
+private fun lastTapText(tap: LastTap?): String {
+    if (tap == null) return stringResource(R.string.setup_last_tap_none)
+    val time = remember(tap.at) { LAST_TAP_TIME.format(tap.at.atZone(ZoneId.systemDefault())) }
+    val result = tap.recognisedAs?.let { stringResource(it.titleRes()) } ?: stringResource(R.string.setup_last_tap_unknown)
+    return stringResource(R.string.setup_last_tap, shortUid(tap.uidHex), time, result)
+}
+
+private val LAST_TAP_TIME = DateTimeFormatter.ofLocalizedDateTime(FormatStyle.SHORT)
 
 @Composable
 private fun NfcNotice(nfc: NfcAvailability, onOpenSettings: () -> Unit) {

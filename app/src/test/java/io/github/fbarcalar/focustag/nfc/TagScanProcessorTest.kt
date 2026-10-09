@@ -4,7 +4,9 @@ import com.google.common.truth.Truth.assertThat
 import io.github.fbarcalar.focustag.focus.FocusController
 import io.github.fbarcalar.focustag.focus.ScanOutcome
 import io.github.fbarcalar.focustag.focus.TagRole
+import io.github.fbarcalar.focustag.testing.FakeClock
 import io.github.fbarcalar.focustag.testing.FakeFocusEngine
+import io.github.fbarcalar.focustag.testing.FakeTapLog
 import java.io.IOException
 import kotlinx.coroutines.test.runTest
 import org.junit.Test
@@ -14,10 +16,23 @@ class TagScanProcessorTest {
     private val b = TagPairing.written(TagRole.DEACTIVATE, "0e9f8a7b-6c5d-4e3f-8a1b-2c3d4e5f6a7b", "04F6E5D4C3B2A1")
     private val repository = InMemoryPairingRepository(mapOf(TagRole.ACTIVATE to a, TagRole.DEACTIVATE to b))
     private val engine = FakeFocusEngine()
-    private val processor = TagScanProcessor(repository, engine)
+    private val tapLog = FakeTapLog()
+    private val clock = FakeClock()
+    private val processor = TagScanProcessor(repository, engine, tapLog, clock)
 
     private fun scanOf(pairing: TagPairing, uid: String = pairing.uidHex) =
         ScannedTag(uid, listOf(FocusTagUri.build(pairing.tagId)))
+
+    @Test
+    fun `every background tap is logged with its uid, time and what it matched`() = runTest {
+        processor.process(scanOf(a))
+        val recognised = tapLog.lastTap.value
+
+        processor.process(ScannedTag("5A000000", emptyList()))
+
+        assertThat(recognised).isEqualTo(LastTap(a.uidHex, clock.instant(), TagRole.ACTIVATE))
+        assertThat(tapLog.lastTap.value).isEqualTo(LastTap("5A000000", clock.instant(), recognisedAs = null))
+    }
 
     @Test
     fun `a valid tag A reaches the controller once and turns focus on`() = runTest {
@@ -55,6 +70,6 @@ class TagScanProcessorTest {
             override suspend fun onTagScanned(role: TagRole): ScanOutcome = throw IOException("disk full")
         }
 
-        assertThat(TagScanProcessor(repository, failing).process(scanOf(a))).isNull()
+        assertThat(TagScanProcessor(repository, failing, tapLog, clock).process(scanOf(a))).isNull()
     }
 }

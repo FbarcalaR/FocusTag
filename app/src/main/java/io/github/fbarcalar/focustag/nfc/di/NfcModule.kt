@@ -20,6 +20,8 @@ import io.github.fbarcalar.focustag.nfc.PairingRepository
 import io.github.fbarcalar.focustag.nfc.NfcTagWriter
 import io.github.fbarcalar.focustag.nfc.TagPairingStore
 import io.github.fbarcalar.focustag.nfc.TagWriter
+import io.github.fbarcalar.focustag.nfc.TapLog
+import io.github.fbarcalar.focustag.nfc.TapLogStore
 import javax.inject.Singleton
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
@@ -34,11 +36,15 @@ abstract class NfcModule {
     abstract fun tagWriter(writer: NfcTagWriter): TagWriter
 
     @Binds
+    abstract fun tapLog(store: TapLogStore): TapLog
+
+    @Binds
     @IntoSet
     abstract fun idOnlyScanSwitch(switch: IdOnlyScanSwitch): AppStartHook
 
     companion object {
         private const val PAIRINGS_FILE = "tag_pairings"
+        private const val TAPS_FILE = "tag_taps"
 
         /** The DataStore stays private to the store, so no unqualified `DataStore` binding exists (R2.2). */
         @Provides
@@ -52,6 +58,20 @@ abstract class NfcModule {
                 corruptionHandler = ReplaceFileCorruptionHandler { emptyPreferences() },
                 scope = CoroutineScope(appScope.coroutineContext + io),
             ) { context.preferencesDataStoreFile(PAIRINGS_FILE) },
+        )
+
+        /** Diagnostics in their own file, so resetting pairings never touches them. */
+        @Provides
+        @Singleton
+        fun tapLogStore(
+            @ApplicationContext context: Context,
+            @ApplicationScope appScope: CoroutineScope,
+            @IoDispatcher io: CoroutineDispatcher,
+        ): TapLogStore = TapLogStore(
+            PreferenceDataStoreFactory.create(
+                corruptionHandler = ReplaceFileCorruptionHandler { emptyPreferences() },
+                scope = CoroutineScope(appScope.coroutineContext + io),
+            ) { context.preferencesDataStoreFile(TAPS_FILE) },
         )
     }
 }

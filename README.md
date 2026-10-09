@@ -179,6 +179,18 @@ Notes:
 * Focus survives app kills and reboots: the state is stored on disk and the effects are re-applied when the
   app starts or the phone boots (after the first unlock).
 
+## Troubleshooting: a tag or card does nothing
+
+1. **Setup → Permissions → "Open from NFC tags".** On Android 16 you can block an app from receiving NFC tag
+   taps, and Android then drops them without any sound or message. If this row says *Missing*, tap
+   **Open settings** and allow FocusTag.
+2. **Setup → Tags → "Last tap outside Setup".** Tap the tag with Setup closed, then reopen Setup:
+   * still *none yet*, or an older time → Android didn't pass the tap to FocusTag (see step 1, make sure the
+     phone is unlocked and NFC is on, and try another spot on the back of the phone);
+   * the new tap with *not recognised* → FocusTag got it but the ID didn't match; compare the ID shown with
+     the one on the tag card, and re-pair if they differ.
+3. Leave Setup before tapping: while it's open, tag taps never switch focus.
+
 ## Manual checks
 
 Some behaviour depends on the real device and can't be tested on the JVM: NFC dispatch, the DND mode and

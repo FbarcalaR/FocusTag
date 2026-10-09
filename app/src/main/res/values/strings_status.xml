@@ -10,6 +10,7 @@
     <string name="status_effect_zen_rule_failed">Do Not Disturb and grayscale are not active. Tap to check Setup.</string>
     <string name="status_effect_grayscale_fallback_failed">The grayscale fallback could not be applied. Tap to check Setup.</string>
     <string name="status_permission_nfc">NFC</string>
+    <string name="status_permission_tag_intents">Open from NFC tags</string>
     <string name="status_permission_accessibility">Accessibility service</string>
     <string name="status_permission_dnd_access">Do Not Disturb access</string>
     <string name="status_permission_notifications">Notifications</string>

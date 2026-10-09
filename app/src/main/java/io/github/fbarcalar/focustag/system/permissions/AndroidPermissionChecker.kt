@@ -19,7 +19,7 @@ import kotlinx.coroutines.launch
 /** Live checklist: re-evaluated on [refresh], on NFC changes and on OS permission signals. */
 @Singleton
 class AndroidPermissionChecker @Inject constructor(
-    nfcGateway: NfcGateway,
+    private val nfcGateway: NfcGateway,
     signals: PermissionChangeSignals,
     private val reader: PermissionStatusReader,
     actions: PermissionActions,
@@ -50,6 +50,7 @@ class AndroidPermissionChecker @Inject constructor(
 
     private fun statusOf(id: PermissionId): PermissionStatus = when (id) {
         PermissionId.NFC_ENABLED -> nfcStatus(nfc)
+        PermissionId.NFC_TAG_INTENTS -> tagIntentStatus(nfc, nfcGateway.tagIntentsAllowed())
         PermissionId.ACCESSIBILITY_SERVICE -> reader.accessibilityService()
         PermissionId.NOTIFICATION_POLICY_ACCESS -> reader.notificationPolicyAccess()
         PermissionId.POST_NOTIFICATIONS -> reader.postNotifications()
@@ -62,6 +63,7 @@ class AndroidPermissionChecker @Inject constructor(
         // Battery, grayscale capability and the adb grant are recommended, not required (PLAN S3).
         val REQUIRED = setOf(
             PermissionId.NFC_ENABLED,
+            PermissionId.NFC_TAG_INTENTS,
             PermissionId.ACCESSIBILITY_SERVICE,
             PermissionId.NOTIFICATION_POLICY_ACCESS,
             PermissionId.POST_NOTIFICATIONS,

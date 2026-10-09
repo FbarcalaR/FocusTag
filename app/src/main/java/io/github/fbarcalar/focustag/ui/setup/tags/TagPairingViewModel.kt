@@ -14,6 +14,7 @@ import io.github.fbarcalar.focustag.nfc.PairingRepository
 import io.github.fbarcalar.focustag.nfc.PairingResult
 import io.github.fbarcalar.focustag.nfc.TagPairing
 import io.github.fbarcalar.focustag.nfc.TagWriter
+import io.github.fbarcalar.focustag.nfc.TapLog
 import io.github.fbarcalar.focustag.nfc.isComplete
 import javax.inject.Inject
 import kotlin.time.Duration.Companion.seconds
@@ -36,14 +37,16 @@ class TagPairingViewModel @Inject constructor(
     private val tagWriter: TagWriter,
     private val nfcGateway: NfcGateway,
     focusStateReader: FocusStateReader,
+    tapLog: TapLog,
 ) : ViewModel() {
     private val pairing = MutableStateFlow<PairingState>(PairingState.Idle)
     private val locked = focusStateReader.state.map { it.mode == FocusMode.FOCUS }.distinctUntilChanged()
     private var timeout: Job? = null
 
     val uiState: StateFlow<TagsUiState> =
-        combine(pairingRepository.pairings, nfcGateway.availability, locked, pairing) { pairings, nfc, locked, pairing ->
-            TagsUiState(loaded = true, tagCards(pairings, locked), nfc, locked, pairing)
+        combine(pairingRepository.pairings, nfcGateway.availability, locked, pairing, tapLog.lastTap) {
+                pairings, nfc, locked, pairing, lastTap ->
+            TagsUiState(loaded = true, tagCards(pairings, locked), nfc, locked, pairing, lastTap)
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS), TagsUiState())
 
     init {

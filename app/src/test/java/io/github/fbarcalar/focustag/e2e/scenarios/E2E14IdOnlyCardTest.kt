@@ -42,6 +42,8 @@ class E2E14IdOnlyCardTest : FocusTagE2E() {
         pairStickerAndCard()
         scanTag(TagRole.ACTIVATE)
         assertMode(FocusMode.FOCUS)
+        // The "Focus on" toast follows the mode change; count it before the ignored scans.
+        eventually { assertThat(ShadowToast.shownToastCount()).isEqualTo(1) }
         val toastsBefore = ShadowToast.shownToastCount()
 
         scanCard("5A000000")
