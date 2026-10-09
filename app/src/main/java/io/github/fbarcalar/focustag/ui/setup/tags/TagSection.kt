@@ -20,6 +20,7 @@ import io.github.fbarcalar.focustag.focus.TagRole
 import io.github.fbarcalar.focustag.nfc.NfcAvailability
 import io.github.fbarcalar.focustag.nfc.LastTap
 import io.github.fbarcalar.focustag.nfc.TagPairing
+import io.github.fbarcalar.focustag.nfc.TapSource
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
@@ -47,7 +48,13 @@ private fun lastTapText(tap: LastTap?): String {
     if (tap == null) return stringResource(R.string.setup_last_tap_none)
     val time = remember(tap.at) { LAST_TAP_TIME.format(tap.at.atZone(ZoneId.systemDefault())) }
     val result = tap.recognisedAs?.let { stringResource(it.titleRes()) } ?: stringResource(R.string.setup_last_tap_unknown)
-    return stringResource(R.string.setup_last_tap, shortUid(tap.uidHex), time, result)
+    val source = stringResource(
+        when (tap.source) {
+            TapSource.IN_APP -> R.string.setup_last_tap_in_app
+            TapSource.BACKGROUND -> R.string.setup_last_tap_background
+        },
+    )
+    return stringResource(R.string.setup_last_tap, shortUid(tap.uidHex), time, result, source)
 }
 
 private val LAST_TAP_TIME = DateTimeFormatter.ofLocalizedDateTime(FormatStyle.SHORT)

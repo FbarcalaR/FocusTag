@@ -22,8 +22,10 @@ class IdOnlyScanSwitchTest {
 
     private fun aliasState() = context.packageManager.getComponentEnabledSetting(IdOnlyScanSwitch.component(context))
 
+    private val switch = IdOnlyScanSwitch(context, repository)
+
     private fun runSwitch(block: suspend () -> Unit) = runTest(UnconfinedTestDispatcher()) {
-        backgroundScope.launch { IdOnlyScanSwitch(context, repository).onAppStart() }
+        backgroundScope.launch { switch.onAppStart() }
         block()
     }
 
@@ -42,5 +44,19 @@ class IdOnlyScanSwitchTest {
 
         assertThat(withCard).isEqualTo(PackageManager.COMPONENT_ENABLED_STATE_ENABLED)
         assertThat(aliasState()).isEqualTo(PackageManager.COMPONENT_ENABLED_STATE_DISABLED)
+    }
+
+    @Test
+    fun `the status tells never switched apart from switched off and on`() {
+        val before = switch.current()
+
+        runSwitch {
+            repository.save(sticker)
+            assertThat(switch.current()).isEqualTo(CardScanning.OFF)
+            repository.save(TagPairing.idOnly(TagRole.DEACTIVATE, "5A3B9C21"))
+            assertThat(switch.current()).isEqualTo(CardScanning.ON)
+        }
+
+        assertThat(before).isEqualTo(CardScanning.NEVER_SWITCHED)
     }
 }

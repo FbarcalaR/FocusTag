@@ -64,7 +64,8 @@ class E2E12SetupPairingTest : FocusTagE2E() {
                 .inOrder()
         }
         assertMode(FocusMode.FREE)
-        assertThat(graph.fakeNfcGateway().readerModeEnabled).isFalse()
+        // Status reads tags itself (D-65): Setup's pause must not switch off the reader Status just took over.
+        composeRule.waitUntil(TIMEOUT_MILLIS) { graph.fakeNfcGateway().readerModeEnabled }
     }
 
     @Test

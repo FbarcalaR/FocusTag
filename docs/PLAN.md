@@ -105,6 +105,7 @@ E2E tests are **not** a final phase. T1 ships an E2E harness: `test/.../e2e/Focu
 | E2E-12 Setup: pair A and B via fake gateway → app routes to Status; reset blocked in FOCUS | T2, T3, T7 | **T7** · `E2E12SetupPairingTest` |
 | E2E-13 Setup: remove app from block list blocked in FOCUS, allowed in FREE | T2, T5, T7 | **T7** · `E2E13BlockListRemovalGatedTest` |
 | E2E-14 Card paired by ID only ends focus; unknown card and a sticker's bare UID are ignored; card scans enabled (D-62) | T2, T3 | follow-up · `E2E14IdOnlyCardTest` |
+| E2E-15 With Status open, FocusTag reads tags itself: a sticker starts focus, a card ends it, an unknown tag toasts "not paired" (D-65) | T2, T3 | follow-up · `E2E15InAppScanTest` |
 
 Merges now follow readiness, not the G2 order in §4 (T2, then T3). "Written by" names the task that wrote the scenario (in bold), or the task expected to complete its set.
 

@@ -21,7 +21,9 @@ import io.github.fbarcalar.focustag.MainActivity
 import io.github.fbarcalar.focustag.R
 import io.github.fbarcalar.focustag.e2e.HarnessTags
 import io.github.fbarcalar.focustag.nfc.PairingRepository
+import io.github.fbarcalar.focustag.nfc.ScannedTag
 import io.github.fbarcalar.focustag.testing.FakeNfcGateway
+import io.github.fbarcalar.focustag.testing.FakeTagHandle
 import io.github.fbarcalar.focustag.testing.cancelApplicationScope
 import javax.inject.Inject
 import kotlinx.coroutines.runBlocking
@@ -31,6 +33,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.Shadows.shadowOf
+import org.robolectric.shadows.ShadowToast
 
 /** The wired Setup destination: reader-mode scope and the ON_RESUME re-check. */
 @OptIn(ExperimentalTestApi::class)
@@ -100,15 +103,19 @@ class SetupDestinationTest {
     }
 
     @Test
-    fun `navigating back from setup switches reader mode off`() {
+    fun `navigating back from setup hands reader mode to status`() {
         openSetupFromStatus()
         awaitReaderModeOn()
         val openSetup = app.getString(R.string.action_open_setup)
+        val notRecognised = app.getString(R.string.nfc_scan_not_recognised)
 
         composeRule.onNodeWithContentDescription(app.getString(R.string.action_back)).performClick()
         composeRule.waitUntilAtLeastOneExists(hasContentDescription(openSetup), TIMEOUT_MILLIS)
+        composeRule.waitUntil(TIMEOUT_MILLIS) { gateway.readerModeEnabled }
+        gateway.present(FakeTagHandle(ScannedTag("5A000000", emptyList())))
 
-        assertThat(gateway.readerModeEnabled).isFalse()
+        // Only Status's reader toasts; Setup's ignores a tag no pairing is waiting for (D-65).
+        composeRule.waitUntil(TIMEOUT_MILLIS) { ShadowToast.getTextOfLatestToast() == notRecognised }
     }
 
     @Test

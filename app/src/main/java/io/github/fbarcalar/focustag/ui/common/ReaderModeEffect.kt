@@ -1,4 +1,4 @@
-package io.github.fbarcalar.focustag.ui.setup.tags
+package io.github.fbarcalar.focustag.ui.common
 
 import android.app.Activity
 import androidx.activity.compose.LocalActivity
@@ -9,7 +9,7 @@ import androidx.lifecycle.compose.LifecycleResumeEffect
 
 /**
  * Reader mode while the hosting lifecycle (the nav back-stack entry) is RESUMED and [enabled];
- * switched off on pause and on leaving composition, so it is never left on (D-14, PLAN P3).
+ * switched off on pause and on leaving composition, so it is never left on (D-14, D-65, PLAN P3).
  */
 @Composable
 fun ReaderModeEffect(enabled: Boolean, onEnable: (Activity) -> Unit, onDisable: (Activity) -> Unit) {

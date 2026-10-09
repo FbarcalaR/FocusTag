@@ -4,4 +4,5 @@
     <string name="nfc_scan_free_time">Free time</string>
     <string name="nfc_scan_already_focus">Already in focus</string>
     <string name="nfc_scan_already_free">Already in free time</string>
+    <string name="nfc_scan_not_recognised">Not a paired FocusTag tag</string>
 </resources>

@@ -13,8 +13,30 @@
     <string name="setup_tag_paired">Paired · %1$s</string>
     <string name="setup_tag_paired_id_only">Paired by ID only · %1$s</string>
     <string name="setup_last_tap_none">Last tap outside Setup: none yet. If tapping a paired tag never changes this, Android isn\'t passing taps to FocusTag.</string>
-    <string name="setup_last_tap">Last tap outside Setup: %1$s at %2$s · %3$s</string>
+    <string name="setup_last_tap">Last tap outside Setup: %1$s at %2$s · %3$s · %4$s</string>
     <string name="setup_last_tap_unknown">not recognised</string>
+    <string name="setup_last_tap_in_app">read with FocusTag open</string>
+    <string name="setup_last_tap_background">passed on by Android</string>
+
+    <!-- Debug details -->
+    <string name="setup_debug_title">Debug details</string>
+    <string name="setup_debug_show">Show</string>
+    <string name="setup_debug_hide">Hide</string>
+    <string name="setup_debug_card_scanning">Background card scanning: %1$s</string>
+    <string name="setup_debug_card_scanning_on">on</string>
+    <string name="setup_debug_card_scanning_off">off</string>
+    <string name="setup_debug_card_scanning_never">off (never switched on)</string>
+    <string name="setup_debug_nfc">NFC: %1$s</string>
+    <string name="setup_debug_nfc_on">on</string>
+    <string name="setup_debug_nfc_off">off</string>
+    <string name="setup_debug_nfc_unavailable">not available</string>
+    <string name="setup_debug_tag_intents">Open from NFC tags: %1$s</string>
+    <string name="setup_debug_allowed">allowed</string>
+    <string name="setup_debug_blocked">blocked</string>
+    <string name="setup_debug_pairing">%1$s: %2$s</string>
+    <string name="setup_debug_pairing_written">%1$s · written tag</string>
+    <string name="setup_debug_pairing_id_only">%1$s · ID only</string>
+    <string name="setup_debug_version">Version: %1$s (%2$d)</string>
     <string name="setup_tag_unpaired">Not paired</string>
     <string name="setup_tag_pair">Pair</string>
     <string name="setup_tag_repair">Re-pair</string>

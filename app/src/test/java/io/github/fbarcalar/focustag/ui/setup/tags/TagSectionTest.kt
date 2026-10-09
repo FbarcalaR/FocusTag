@@ -15,6 +15,7 @@ import io.github.fbarcalar.focustag.focus.TagRole
 import io.github.fbarcalar.focustag.nfc.NfcAvailability
 import io.github.fbarcalar.focustag.nfc.TagPairing
 import io.github.fbarcalar.focustag.nfc.LastTap
+import io.github.fbarcalar.focustag.nfc.TapSource
 import java.time.Instant
 import org.junit.Rule
 import org.junit.Test
@@ -116,6 +117,7 @@ class TagSectionTest {
 
         composeRule.onNodeWithText("…3B:9C:21 at ", substring = true)
             .assertTextContains(text(R.string.setup_tag_deactivate_title), substring = true)
+            .assertTextContains(text(R.string.setup_last_tap_background), substring = true)
     }
 
     @Test
@@ -123,5 +125,12 @@ class TagSectionTest {
         show(TagsUiState(lastTap = LastTap("5A000000", Instant.EPOCH, recognisedAs = null)))
 
         composeRule.onNodeWithText(text(R.string.setup_last_tap_unknown), substring = true).assertExists()
+    }
+
+    @Test
+    fun `a tap read with the app open says so`() {
+        show(TagsUiState(lastTap = LastTap("5A3B9C21", Instant.EPOCH, TagRole.DEACTIVATE, TapSource.IN_APP)))
+
+        composeRule.onNodeWithText(text(R.string.setup_last_tap_in_app), substring = true).assertExists()
     }
 }

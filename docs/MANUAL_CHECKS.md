@@ -211,3 +211,12 @@ Use a transport, access or loyalty card you don't mind tapping. Nothing is writt
 | 6 | In Setup, re-pair Tag B with an NTAG sticker. Then tap a bank card with the app closed. | Nothing opens: card scans are off again once no card is paired by ID. | |
 | 7 | (Optional) Try to pair a locked tag that opens a website when tapped. | Refused as locked; it isn't offered ID-only pairing. | |
 
+## MC-16 — Reading tags with the app open, and Debug details (D-65)
+
+| # | Step | Expected | Result |
+|---|------|----------|--------|
+| 1 | Pair Tag A and Tag B (one of them may be a card paired by ID). Open FocusTag on Status. Tap Tag A. | "Focus on" toast, FOCUS. | |
+| 2 | Still on Status, tap Tag B. | "Free time" toast, FREE TIME. Setup's last-tap line ends with "read with FocusTag open". | |
+| 3 | On Status, tap an unpaired card. | "Not a paired FocusTag tag" toast; the mode doesn't change. | |
+| 4 | Open Setup and tap Tag A without pairing. | Nothing changes (Setup never switches focus). Start a pairing: the tap pairs as before. | |
+| 5 | Setup → Debug details → Show. | Card scanning, NFC, "Open from NFC tags", both pairings with full IDs, and the version are listed. With a card paired by ID, card scanning says *on*. | |

@@ -17,13 +17,20 @@ import kotlinx.coroutines.flow.map
 class IdOnlyScanSwitch @Inject constructor(
     @ApplicationContext private val context: Context,
     private val repository: PairingRepository,
-) : AppStartHook {
+) : AppStartHook, CardScanningStatus {
     override suspend fun onAppStart() {
         repository.pairings
             .map { pairings -> pairings.values.any { it.isIdOnly } }
             .distinctUntilChanged()
             .collect(::setEnabled)
     }
+
+    override fun current(): CardScanning =
+        when (context.packageManager.getComponentEnabledSetting(component(context))) {
+            PackageManager.COMPONENT_ENABLED_STATE_ENABLED -> CardScanning.ON
+            PackageManager.COMPONENT_ENABLED_STATE_DEFAULT -> CardScanning.NEVER_SWITCHED
+            else -> CardScanning.OFF
+        }
 
     private fun setEnabled(enabled: Boolean) {
         val state = if (enabled) {

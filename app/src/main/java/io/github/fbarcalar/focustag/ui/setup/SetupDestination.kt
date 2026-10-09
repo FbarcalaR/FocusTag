@@ -13,11 +13,12 @@ import io.github.fbarcalar.focustag.system.PermissionId
 import io.github.fbarcalar.focustag.system.PermissionItem
 import io.github.fbarcalar.focustag.ui.setup.blocklist.BlockListEvent
 import io.github.fbarcalar.focustag.ui.setup.blocklist.BlockListViewModel
+import io.github.fbarcalar.focustag.ui.setup.debug.DebugDetailsViewModel
 import io.github.fbarcalar.focustag.ui.setup.permissions.PermissionEvent
 import io.github.fbarcalar.focustag.ui.setup.permissions.PermissionsViewModel
 import io.github.fbarcalar.focustag.ui.setup.permissions.rememberPermissionActionLauncher
 import io.github.fbarcalar.focustag.ui.setup.tags.PairingState
-import io.github.fbarcalar.focustag.ui.setup.tags.ReaderModeEffect
+import io.github.fbarcalar.focustag.ui.common.ReaderModeEffect
 import io.github.fbarcalar.focustag.ui.setup.tags.TagEvent
 import io.github.fbarcalar.focustag.ui.setup.tags.TagPairingViewModel
 
@@ -30,14 +31,17 @@ fun SetupDestination(onBack: (() -> Unit)?, onPairingComplete: () -> Unit) {
     val tagsViewModel: TagPairingViewModel = hiltViewModel()
     val permissionsViewModel: PermissionsViewModel = hiltViewModel()
     val blockListViewModel: BlockListViewModel = hiltViewModel()
+    val debugViewModel: DebugDetailsViewModel = hiltViewModel()
     val tags by tagsViewModel.uiState.collectAsStateWithLifecycle()
     val permissions by permissionsViewModel.uiState.collectAsStateWithLifecycle()
     val blockList by blockListViewModel.uiState.collectAsStateWithLifecycle()
+    val debug by debugViewModel.uiState.collectAsStateWithLifecycle()
     val launch = rememberPermissionActionLauncher(onResult = permissionsViewModel::refresh)
 
     ReaderModeEffect(tags.loaded && tags.nfc == NfcAvailability.ENABLED, tagsViewModel::enableReaderMode, tagsViewModel::disableReaderMode)
     LifecycleResumeEffect(Unit) {
         permissionsViewModel.refresh()
+        debugViewModel.refresh()
         onPauseOrDispose {}
     }
     PairingCompleteEffect(tags.pairing, onPairingComplete)
@@ -46,6 +50,7 @@ fun SetupDestination(onBack: (() -> Unit)?, onPairingComplete: () -> Unit) {
         tags = tags,
         permissions = permissions,
         blockList = blockList,
+        debug = debug,
         onTagEvent = { event -> tagsViewModel.handle(event, onOpenNfcSettings = { permissions.items.nfcAction()?.let(launch) }) },
         onPermissionEvent = { event -> permissionsViewModel.handle(event, launch) },
         onBlockListEvent = blockListViewModel::handle,

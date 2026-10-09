@@ -47,4 +47,11 @@ class TapLogStoreTest {
 
         assertThat(store.lastTap.first()).isEqualTo(LastTap("5A000000", at.plusSeconds(5), recognisedAs = null))
     }
+
+    @Test
+    fun `how the tap arrived is read back`() = runBlocking<Unit> {
+        store.record(LastTap("5A3B9C21", at, TagRole.DEACTIVATE, TapSource.IN_APP))
+
+        assertThat(store.lastTap.first()?.source).isEqualTo(TapSource.IN_APP)
+    }
 }

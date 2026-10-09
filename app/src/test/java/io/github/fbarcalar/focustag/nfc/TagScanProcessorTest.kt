@@ -35,6 +35,13 @@ class TagScanProcessorTest {
     }
 
     @Test
+    fun `a tap read in the app is logged as such`() = runTest {
+        processor.process(scanOf(a), TapSource.IN_APP)
+
+        assertThat(tapLog.lastTap.value?.source).isEqualTo(TapSource.IN_APP)
+    }
+
+    @Test
     fun `a valid tag A reaches the controller once and turns focus on`() = runTest {
         val feedback = processor.process(scanOf(a))
 
