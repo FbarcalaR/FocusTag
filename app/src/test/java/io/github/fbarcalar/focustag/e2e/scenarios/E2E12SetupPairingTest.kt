@@ -85,6 +85,7 @@ class E2E12SetupPairingTest : FocusTagE2E() {
     private fun pairThroughUi(uidHex: String) {
         composeRule.onAllNodesWithText(text(R.string.setup_tag_pair))[0].performScrollTo().performClick()
         awaitText(R.string.setup_pairing_waiting)
+        composeRule.waitUntil(TIMEOUT_MILLIS) { graph.fakeNfcGateway().readerModeEnabled }
         graph.fakeNfcGateway().present(FakeTagHandle(ScannedTag(uidHex, emptyList())))
         idle()
     }
