@@ -88,6 +88,8 @@ class TagDialogsTest {
             PairingError.READ_ONLY to R.string.setup_pairing_error_read_only,
             PairingError.TOO_SMALL to R.string.setup_pairing_error_too_small,
             PairingError.NOT_NDEF to R.string.setup_pairing_error_not_ndef,
+            PairingError.TAG_LOST to R.string.setup_pairing_error_tag_lost,
+            PairingError.REJECTED to R.string.setup_pairing_error_rejected,
             PairingError.IO_ERROR to R.string.setup_pairing_error_io,
             PairingError.VERIFY_FAILED to R.string.setup_pairing_error_verify,
             PairingError.TIMED_OUT to R.string.setup_pairing_error_timeout,

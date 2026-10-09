@@ -39,10 +39,16 @@ enum class WriteFailure {
     /** The message does not fit. */
     TOO_SMALL,
 
-    /** The tag is neither NDEF nor NDEF-formatable. */
+    /** The tag cannot hold NDEF data, e.g. a protected transport, bank or access card. */
     NOT_NDEF,
 
-    /** The tag left the field or I/O failed. */
+    /** The tag left the field mid-operation. */
+    TAG_LOST,
+
+    /** The tag answered but refused the format or write. */
+    REJECTED,
+
+    /** The pairing could not be read or saved on the phone. */
     IO_ERROR,
 
     /** The read-back did not match what was written. */

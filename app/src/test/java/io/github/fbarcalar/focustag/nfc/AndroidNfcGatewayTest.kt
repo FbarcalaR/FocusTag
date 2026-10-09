@@ -125,6 +125,22 @@ class AndroidNfcGatewayTest {
         assertThat(gateway.writeFocusTag(handle, uri)).isEqualTo(WriteResult.Failed(WriteFailure.NOT_NDEF))
     }
 
+    @Test
+    fun `a protected desfire transport card is unsupported, not formatted`() = runTest {
+        val card = mockTag(TECH_NFC_A, TECH_ISO_DEP, TECH_NDEF_FORMATABLE)
+        val handle = AndroidNfcTagHandle(card, ScannedTag("04A1B20CD4E506", emptyList()))
+
+        assertThat(gateway.writeFocusTag(handle, uri)).isEqualTo(WriteResult.Failed(WriteFailure.NOT_NDEF))
+    }
+
+    @Test
+    fun `a mifare classic card is unsupported, not formatted`() = runTest {
+        val card = mockTag(TECH_NFC_A, TECH_MIFARE_CLASSIC, TECH_NDEF_FORMATABLE)
+        val handle = AndroidNfcTagHandle(card, ScannedTag("04A1B20CD4E506", emptyList()))
+
+        assertThat(gateway.writeFocusTag(handle, uri)).isEqualTo(WriteResult.Failed(WriteFailure.NOT_NDEF))
+    }
+
     private fun shadowAdapter(): ShadowNfcAdapter = shadowOf(NfcAdapter.getDefaultAdapter(context))
 
     private fun setAdapterEnabled(enabled: Boolean) {
@@ -137,18 +153,21 @@ class AndroidNfcGatewayTest {
         .putExtra(NfcAdapter.EXTRA_TAG, tag)
         .putExtra(NfcAdapter.EXTRA_NDEF_MESSAGES, arrayOf(message))
 
-    /** `Tag.createMockTag` is hidden but present in android-all; NFC-A only, so no NDEF tech. */
-    private fun mockTag(): Tag = ReflectionHelpers.callStaticMethod(
+    /** `Tag.createMockTag` is hidden but present in android-all; NFC-A only by default, so no NDEF tech. */
+    private fun mockTag(vararg techs: Int = intArrayOf(TECH_NFC_A)): Tag = ReflectionHelpers.callStaticMethod(
         Tag::class.java,
         "createMockTag",
         ClassParameter.from(ByteArray::class.java, uid),
-        ClassParameter.from(IntArray::class.java, intArrayOf(TECH_NFC_A)),
-        ClassParameter.from(Array<Bundle>::class.java, arrayOf(Bundle())),
+        ClassParameter.from(IntArray::class.java, techs),
+        ClassParameter.from(Array<Bundle>::class.java, Array(techs.size) { Bundle() }),
         ClassParameter.from(Long::class.javaPrimitiveType, 0L),
     )
 
     private companion object {
-        /** `TagTechnology.NFC_A` (hidden). */
+        /** Hidden `TagTechnology` constants. */
         const val TECH_NFC_A = 1
+        const val TECH_ISO_DEP = 3
+        const val TECH_NDEF_FORMATABLE = 7
+        const val TECH_MIFARE_CLASSIC = 8
     }
 }

@@ -85,6 +85,8 @@ class TagPairingViewModelTest : TagPairingFixture() {
             WriteFailure.READ_ONLY to PairingError.READ_ONLY,
             WriteFailure.TOO_SMALL to PairingError.TOO_SMALL,
             WriteFailure.NOT_NDEF to PairingError.NOT_NDEF,
+            WriteFailure.TAG_LOST to PairingError.TAG_LOST,
+            WriteFailure.REJECTED to PairingError.REJECTED,
             WriteFailure.IO_ERROR to PairingError.IO_ERROR,
             WriteFailure.VERIFY_FAILED to PairingError.VERIFY_FAILED,
         )

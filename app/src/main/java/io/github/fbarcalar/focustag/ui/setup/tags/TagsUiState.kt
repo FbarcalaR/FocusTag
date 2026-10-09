@@ -39,7 +39,9 @@ sealed interface PairingState {
 }
 
 /** Why a pairing attempt failed; one message each. */
-enum class PairingError { UID_USED_BY_OTHER_ROLE, READ_ONLY, TOO_SMALL, NOT_NDEF, IO_ERROR, VERIFY_FAILED, TIMED_OUT }
+enum class PairingError {
+    UID_USED_BY_OTHER_ROLE, READ_ONLY, TOO_SMALL, NOT_NDEF, TAG_LOST, REJECTED, IO_ERROR, VERIFY_FAILED, TIMED_OUT,
+}
 
 /** Re-pair and reset are locked in FOCUS; a first pairing never is (recovery, PLAN P4). */
 fun tagCards(pairings: Map<TagRole, TagPairing>, locked: Boolean): List<TagCard> =
@@ -68,6 +70,8 @@ private fun WriteFailure.toPairingError(): PairingError = when (this) {
     WriteFailure.READ_ONLY -> PairingError.READ_ONLY
     WriteFailure.TOO_SMALL -> PairingError.TOO_SMALL
     WriteFailure.NOT_NDEF -> PairingError.NOT_NDEF
+    WriteFailure.TAG_LOST -> PairingError.TAG_LOST
+    WriteFailure.REJECTED -> PairingError.REJECTED
     WriteFailure.IO_ERROR -> PairingError.IO_ERROR
     WriteFailure.VERIFY_FAILED -> PairingError.VERIFY_FAILED
 }

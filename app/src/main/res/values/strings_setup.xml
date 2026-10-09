@@ -35,8 +35,10 @@
     <string name="setup_pairing_error_uid_used">This tag is already paired as the other tag. Use another tag.</string>
     <string name="setup_pairing_error_read_only">This tag is locked and can\'t be written.</string>
     <string name="setup_pairing_error_too_small">This tag is too small. Use an NTAG213/215/216.</string>
-    <string name="setup_pairing_error_not_ndef">Unsupported tag. Use an NTAG213/215/216.</string>
-    <string name="setup_pairing_error_io">Lost contact with the tag. Hold it still and try again.</string>
+    <string name="setup_pairing_error_not_ndef">This card can\'t store FocusTag data. Transport, bank and access cards are protected. Use an NTAG213/215/216 sticker or card.</string>
+    <string name="setup_pairing_error_tag_lost">Lost contact with the tag. Hold it still and try again.</string>
+    <string name="setup_pairing_error_rejected">The tag refused the write. Use a writable NTAG213/215/216 sticker or card.</string>
+    <string name="setup_pairing_error_io">Couldn\'t save the pairing on this phone. Try again.</string>
     <string name="setup_pairing_error_verify">The tag was prepared. Tap it again to finish.</string>
     <string name="setup_pairing_error_timeout">No tag found.</string>
 

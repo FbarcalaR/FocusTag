@@ -76,6 +76,8 @@ private fun PairingError.messageRes(): Int = when (this) {
     PairingError.READ_ONLY -> R.string.setup_pairing_error_read_only
     PairingError.TOO_SMALL -> R.string.setup_pairing_error_too_small
     PairingError.NOT_NDEF -> R.string.setup_pairing_error_not_ndef
+    PairingError.TAG_LOST -> R.string.setup_pairing_error_tag_lost
+    PairingError.REJECTED -> R.string.setup_pairing_error_rejected
     PairingError.IO_ERROR -> R.string.setup_pairing_error_io
     PairingError.VERIFY_FAILED -> R.string.setup_pairing_error_verify
     PairingError.TIMED_OUT -> R.string.setup_pairing_error_timeout

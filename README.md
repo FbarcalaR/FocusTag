@@ -151,6 +151,10 @@ shows a warning banner that names it. Tap the banner to go to Setup.
 Notes:
 
 * **Use NTAG213/215/216.** They have a fixed 7-byte UID. Tags with a random UID can't be validated.
+* **Transport, bank, access and loyalty cards won't work.** They are key-protected smart cards (MIFARE DESFire,
+  MIFARE Classic, Calypso…) that can't store the FocusTag link, and many use a random UID. The app refuses them
+  with "This card can't store FocusTag data" and never tries to format them. Cheap NTAG213/215/216 stickers,
+  cards or keyfobs work.
 * **While Setup is open, tag scans don't switch focus** (the screen says so). This keeps a pairing tap from
   toggling focus. Leave Setup before scanning.
 * A copy of the URI on another tag, an unknown tag, or a tag from an earlier pairing is **ignored**, because
