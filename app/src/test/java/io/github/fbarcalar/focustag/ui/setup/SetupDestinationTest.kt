@@ -67,21 +67,17 @@ class SetupDestinationTest {
     private fun awaitText(id: Int) = composeRule.waitUntilAtLeastOneExists(hasText(app.getString(id)), TIMEOUT_MILLIS)
 
     /** Reader mode starts once the tags have loaded from disk, a moment after the screen first draws. */
-    private fun awaitReaderModeOn() = composeRule.waitUntil(TIMEOUT_MILLIS) { gateway.readerModeEnabled }
-
-    @Test
-    fun `reader mode is on while setup is shown and off once the activity is gone`() {
-        launch()
-        awaitText(R.string.title_setup)
-        awaitReaderModeOn()
-
-        scenario.close()
-
-        assertThat(gateway.readerModeEnabled).isFalse()
+    private fun awaitReaderModeOn() {
+        composeRule.awaitTagCards(app)
+        composeRule.waitUntil(SETUP_TIMEOUT_MILLIS) { gateway.readerModeEnabled }
     }
 
-    @Test
-    fun `navigating back from setup switches reader mode off`() {
+    /**
+     * Opens Setup from Status. When Setup is the very first screen and the stored state is already
+     * cached, Robolectric sometimes never delivers another frame to it, so its state never loads;
+     * real devices are unaffected (D-64). Reaching Setup by navigation avoids that test-only stall.
+     */
+    private fun openSetupFromStatus() {
         runBlocking {
             pairingRepository.save(HarnessTags.A)
             pairingRepository.save(HarnessTags.B)
@@ -91,7 +87,23 @@ class SetupDestinationTest {
         composeRule.waitUntilAtLeastOneExists(hasContentDescription(openSetup), TIMEOUT_MILLIS)
         composeRule.onNodeWithContentDescription(openSetup).performClick()
         awaitText(R.string.title_setup)
+    }
+
+    @Test
+    fun `reader mode is on while setup is shown and off once the activity is gone`() {
+        openSetupFromStatus()
         awaitReaderModeOn()
+
+        scenario.close()
+
+        assertThat(gateway.readerModeEnabled).isFalse()
+    }
+
+    @Test
+    fun `navigating back from setup switches reader mode off`() {
+        openSetupFromStatus()
+        awaitReaderModeOn()
+        val openSetup = app.getString(R.string.action_open_setup)
 
         composeRule.onNodeWithContentDescription(app.getString(R.string.action_back)).performClick()
         composeRule.waitUntilAtLeastOneExists(hasContentDescription(openSetup), TIMEOUT_MILLIS)

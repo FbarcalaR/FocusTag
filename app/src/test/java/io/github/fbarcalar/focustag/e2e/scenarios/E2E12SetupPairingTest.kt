@@ -24,7 +24,9 @@ import io.github.fbarcalar.focustag.focus.FocusMode
 import io.github.fbarcalar.focustag.focus.TagRole
 import io.github.fbarcalar.focustag.nfc.ScannedTag
 import io.github.fbarcalar.focustag.testing.FakeTagHandle
+import io.github.fbarcalar.focustag.ui.setup.awaitTagCards
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.junit.runner.RunWith
 
@@ -37,8 +39,13 @@ class E2E12SetupPairingTest : FocusTagE2E() {
 
     @Test
     fun `pairing tag A then tag B on setup routes to status without toggling focus`() {
+        // Reach Setup from Status, then unpair: Setup as the very first screen can stall under
+        // Robolectric (D-64). The app's own first-run path is covered on the device (MC-01).
+        pairTags()
         openMainUi()
-        awaitText(R.string.title_setup)
+        openSetup()
+        runBlocking { graph.pairingRepository().resetAll() }
+        composeRule.waitUntilNodeCount(hasText(text(R.string.setup_tag_unpaired)), count = 2, TIMEOUT_MILLIS)
 
         pairThroughUi(HarnessTags.A.uidHex)
         awaitText(R.string.setup_pairing_ok)
@@ -83,6 +90,7 @@ class E2E12SetupPairingTest : FocusTagE2E() {
     }
 
     private fun pairThroughUi(uidHex: String) {
+        composeRule.awaitTagCards(app)
         composeRule.onAllNodesWithText(text(R.string.setup_tag_pair))[0].performScrollTo().performClick()
         awaitText(R.string.setup_pairing_waiting)
         composeRule.waitUntil(TIMEOUT_MILLIS) { graph.fakeNfcGateway().readerModeEnabled }
@@ -95,6 +103,7 @@ class E2E12SetupPairingTest : FocusTagE2E() {
         composeRule.waitUntilAtLeastOneExists(openSetup, TIMEOUT_MILLIS)
         composeRule.onNode(openSetup).performClick()
         awaitText(R.string.title_setup)
+        composeRule.awaitTagCards(app)
     }
 
     private fun awaitText(id: Int) = composeRule.waitUntilAtLeastOneExists(hasText(text(id)), TIMEOUT_MILLIS)
