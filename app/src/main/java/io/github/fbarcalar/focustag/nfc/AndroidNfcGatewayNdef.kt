@@ -4,6 +4,8 @@ import android.nfc.FormatException
 import android.nfc.NdefMessage
 import android.nfc.NdefRecord
 import android.nfc.Tag
+import android.nfc.TagLostException
+import android.nfc.tech.MifareUltralight
 import android.nfc.tech.Ndef
 import android.nfc.tech.NdefFormatable
 import android.nfc.tech.TagTechnology
@@ -24,10 +26,19 @@ internal fun Tag.toScannedTag(messages: List<NdefMessage>) = ScannedTag(id.toUid
 
 internal fun ByteArray.toUidHex(): String = joinToString(separator = "") { "%02X".format(it) }
 
-/** The writable NDEF view of this tag, or null when it supports neither `Ndef` nor `NdefFormatable`. */
+/**
+ * The writable NDEF view of this tag, or null when it cannot hold our message.
+ *
+ * Android also reports MIFARE Classic and DESFire cards (transport, access and loyalty cards) as
+ * `NdefFormatable`, but those are key-protected and refuse a format. So only blank NFC Forum
+ * Type 2 stickers (NTAG/Ultralight) are formatted; anything else without `Ndef` is unsupported.
+ */
 internal fun Tag.ndefTarget(message: NdefMessage): CloseableNdefTarget? =
     Ndef.get(this)?.let { NdefTechTarget(it, message) }
-        ?: NdefFormatable.get(this)?.let { FormatableTarget(it, message) }
+        ?: formatableSticker()?.let { FormatableTarget(it, message) }
+
+private fun Tag.formatableSticker(): NdefFormatable? =
+    if (MifareUltralight.get(this) != null) NdefFormatable.get(this) else null
 
 internal interface CloseableNdefTarget : NdefTarget, Closeable
 
@@ -67,6 +78,8 @@ private class FormatableTarget(
 /** Framework exceptions for a stale, busy or garbled tag become the I/O failure the rules expect. */
 private inline fun <T> ioBoundary(block: () -> T): T = try {
     block()
+} catch (e: TagLostException) {
+    throw TagLeftFieldException(e)
 } catch (e: FormatException) {
     throw IOException(e)
 } catch (e: SecurityException) {

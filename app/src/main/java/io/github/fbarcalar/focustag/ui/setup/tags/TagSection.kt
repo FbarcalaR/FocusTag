@@ -53,7 +53,7 @@ private fun TagCardView(card: TagCard, nfcOn: Boolean, onPair: () -> Unit, onRes
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(stringResource(card.role.titleRes()), style = MaterialTheme.typography.titleSmall)
             Text(stringResource(card.role.purposeRes()), style = MaterialTheme.typography.bodySmall)
-            Text(card.shortUid?.let { stringResource(R.string.setup_tag_paired, it) } ?: stringResource(R.string.setup_tag_unpaired))
+            Text(card.statusText())
             TagButtons(card, nfcOn, onPair, onReset)
             if (card.isPaired && !card.canReset) {
                 Text(stringResource(R.string.setup_tag_locked), style = MaterialTheme.typography.bodySmall)
@@ -73,7 +73,17 @@ private fun TagButtons(card: TagCard, nfcOn: Boolean, onPair: () -> Unit, onRese
     }
 }
 
-private val previewPairings = mapOf(TagRole.ACTIVATE to TagPairing(TagRole.ACTIVATE, "id", "04A1B2C3D4E5F6"))
+@Composable
+private fun TagCard.statusText(): String = when {
+    shortUid == null -> stringResource(R.string.setup_tag_unpaired)
+    idOnly -> stringResource(R.string.setup_tag_paired_id_only, shortUid)
+    else -> stringResource(R.string.setup_tag_paired, shortUid)
+}
+
+private val previewPairings = mapOf(
+    TagRole.ACTIVATE to TagPairing.written(TagRole.ACTIVATE, "id", "04A1B2C3D4E5F6"),
+    TagRole.DEACTIVATE to TagPairing.idOnly(TagRole.DEACTIVATE, "04F6E5D4C3B2A1"),
+)
 
 @Preview(showBackground = true)
 @Composable

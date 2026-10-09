@@ -2,6 +2,9 @@ package io.github.fbarcalar.focustag.nfc
 
 import java.io.IOException
 
+/** The tag left the field mid-operation; any other [IOException] means the tag refused it. */
+internal class TagLeftFieldException(cause: Throwable) : IOException(cause)
+
 /** Seam over the Android NDEF techs so the write/verify rules stay JVM-testable. */
 internal interface NdefTarget {
     val isWritable: Boolean
@@ -29,8 +32,10 @@ internal object TagWriteRules {
     private fun writeAndVerify(target: NdefTarget, expectedUri: String): WriteResult = try {
         target.write()
         verify(target.readBackUris(), expectedUri)
+    } catch (_: TagLeftFieldException) {
+        failed(WriteFailure.TAG_LOST)
     } catch (_: IOException) {
-        failed(WriteFailure.IO_ERROR)
+        failed(WriteFailure.REJECTED)
     }
 
     private fun verify(readBack: List<String>?, expectedUri: String): WriteResult = when (readBack?.firstOrNull()) {

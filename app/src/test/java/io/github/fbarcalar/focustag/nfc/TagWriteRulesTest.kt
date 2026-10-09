@@ -11,6 +11,7 @@ class TagWriteRulesTest {
         override val isWritable: Boolean = true,
         override val maxSize: Int? = 100,
         private val failWrite: Boolean = false,
+        private val loseTag: Boolean = false,
         private val failRead: Boolean = false,
         private val readBack: List<String>? = null,
     ) : NdefTarget {
@@ -18,7 +19,8 @@ class TagWriteRulesTest {
 
         override fun write() {
             writeCount++
-            if (failWrite) throw IOException("tag lost")
+            if (loseTag) throw TagLeftFieldException(IOException("left the field"))
+            if (failWrite) throw IOException("refused")
         }
 
         override fun readBackUris(): List<String>? = if (failRead) throw IOException("tag lost") else readBack
@@ -48,17 +50,24 @@ class TagWriteRulesTest {
     }
 
     @Test
-    fun `an io failure while writing is an io error`() {
+    fun `a tag that refuses the write is rejected`() {
         val target = FakeNdefTarget(failWrite = true)
 
-        assertThat(TagWriteRules.write(target, 40, uri)).isEqualTo(WriteResult.Failed(WriteFailure.IO_ERROR))
+        assertThat(TagWriteRules.write(target, 40, uri)).isEqualTo(WriteResult.Failed(WriteFailure.REJECTED))
     }
 
     @Test
-    fun `an io failure while reading back is an io error`() {
+    fun `a tag that leaves the field while writing is lost`() {
+        val target = FakeNdefTarget(loseTag = true)
+
+        assertThat(TagWriteRules.write(target, 40, uri)).isEqualTo(WriteResult.Failed(WriteFailure.TAG_LOST))
+    }
+
+    @Test
+    fun `an io failure while reading back is rejected`() {
         val target = FakeNdefTarget(failRead = true)
 
-        assertThat(TagWriteRules.write(target, 40, uri)).isEqualTo(WriteResult.Failed(WriteFailure.IO_ERROR))
+        assertThat(TagWriteRules.write(target, 40, uri)).isEqualTo(WriteResult.Failed(WriteFailure.REJECTED))
     }
 
     @Test

@@ -62,6 +62,21 @@
             </intent-filter>
         </activity>
 
+        <!-- D-62: cards paired by ID only carry no FocusTag URI, so they are caught by chip type.
+             Disabled until such a card is paired (IdOnlyScanSwitch). -->
+        <activity-alias
+            android:name=".nfc.IdOnlyScanTrigger"
+            android:enabled="false"
+            android:exported="true"
+            android:targetActivity=".nfc.NfcTriggerActivity">
+            <intent-filter>
+                <action android:name="android.nfc.action.TECH_DISCOVERED" />
+            </intent-filter>
+            <meta-data
+                android:name="android.nfc.action.TECH_DISCOVERED"
+                android:resource="@xml/nfc_id_only_techs" />
+        </activity-alias>
+
         <!-- D-20: shown over a blocked app. -->
         <activity
             android:name=".blocker.BlockingActivity"

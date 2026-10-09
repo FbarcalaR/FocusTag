@@ -11,8 +11,8 @@ import kotlinx.coroutines.test.runTest
 import org.junit.Test
 
 class NfcTagWriterTest {
-    private val a = TagPairing(TagRole.ACTIVATE, "6f1d2c3b-4a59-4e8f-9a01-0b2c3d4e5f60", "04A1B2C3D4E5F6")
-    private val b = TagPairing(TagRole.DEACTIVATE, "0e9f8a7b-6c5d-4e3f-8a1b-2c3d4e5f6a7b", "04F6E5D4C3B2A1")
+    private val a = TagPairing.written(TagRole.ACTIVATE, "6f1d2c3b-4a59-4e8f-9a01-0b2c3d4e5f60", "04A1B2C3D4E5F6")
+    private val b = TagPairing.written(TagRole.DEACTIVATE, "0e9f8a7b-6c5d-4e3f-8a1b-2c3d4e5f6a7b", "04F6E5D4C3B2A1")
     private val gateway = FakeNfcGateway()
 
     private fun handle(uid: String) = FakeTagHandle(ScannedTag(uid, emptyList()))
@@ -35,7 +35,7 @@ class NfcTagWriterTest {
 
         val writtenId = checkNotNull(FocusTagUri.parseTagId(gateway.writes.single().uri))
         assertThat(UUID.fromString(writtenId).toString()).isEqualTo(writtenId)
-        val expected = TagPairing(TagRole.ACTIVATE, writtenId, a.uidHex)
+        val expected = TagPairing.written(TagRole.ACTIVATE, writtenId, a.uidHex)
         assertThat(result).isEqualTo(PairingResult.Paired(expected))
         assertThat(repository.pairings.value).containsExactly(TagRole.ACTIVATE, expected)
     }
@@ -43,11 +43,11 @@ class NfcTagWriterTest {
     @Test
     fun `a failed write keeps the existing pairing`() = runTest {
         val repository = InMemoryPairingRepository(mapOf(TagRole.ACTIVATE to a))
-        gateway.enqueueWriteResult(WriteResult.Failed(WriteFailure.TOO_SMALL))
+        gateway.enqueueWriteResult(WriteResult.Failed(WriteFailure.TAG_LOST))
 
         val result = NfcTagWriter(gateway, repository).pair(handle("04999999999999"), TagRole.ACTIVATE)
 
-        assertThat(result).isEqualTo(PairingResult.WriteFailed(WriteFailure.TOO_SMALL))
+        assertThat(result).isEqualTo(PairingResult.WriteFailed(WriteFailure.TAG_LOST))
         assertThat(repository.pairings.value).containsExactly(TagRole.ACTIVATE, a)
     }
 

@@ -1,5 +1,6 @@
 package io.github.fbarcalar.focustag.e2e.scenarios
 
+import io.github.fbarcalar.focustag.nfc.tagId
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertAll
 import androidx.compose.ui.test.assertIsEnabled

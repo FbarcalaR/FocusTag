@@ -14,8 +14,8 @@ import io.github.fbarcalar.focustag.system.missingRequired
 import org.junit.Test
 
 class ContractsTest {
-    private val pairingA = TagPairing(TagRole.ACTIVATE, tagId = "a", uidHex = "01")
-    private val pairingB = TagPairing(TagRole.DEACTIVATE, tagId = "b", uidHex = "02")
+    private val pairingA = TagPairing.written(TagRole.ACTIVATE, tagId = "a", uidHex = "01")
+    private val pairingB = TagPairing.written(TagRole.DEACTIVATE, tagId = "b", uidHex = "02")
 
     @Test
     fun `pairings are complete only when both roles are paired`() {

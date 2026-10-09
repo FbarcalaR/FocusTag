@@ -22,6 +22,7 @@ data class TagCard(
     val canPair: Boolean,
     val canRepair: Boolean,
     val canReset: Boolean,
+    val idOnly: Boolean = false,
 ) {
     val isPaired: Boolean get() = shortUid != null
 
@@ -34,12 +35,18 @@ sealed interface PairingState {
     data object Idle : PairingState
     data class WaitingForTag(val role: TagRole) : PairingState
     data class Writing(val role: TagRole) : PairingState
+
+    /** The card can't be written; waiting for a second tap showing the same [uidHex] (D-62). */
+    data class ConfirmingId(val role: TagRole, val uidHex: String) : PairingState
     data class Done(val role: TagRole, val completesSetup: Boolean) : PairingState
     data class Failed(val role: TagRole, val error: PairingError) : PairingState
 }
 
 /** Why a pairing attempt failed; one message each. */
-enum class PairingError { UID_USED_BY_OTHER_ROLE, READ_ONLY, TOO_SMALL, NOT_NDEF, IO_ERROR, VERIFY_FAILED, TIMED_OUT }
+enum class PairingError {
+    UID_USED_BY_OTHER_ROLE, READ_ONLY, TOO_SMALL, NOT_NDEF, TAG_LOST, REJECTED, IO_ERROR, VERIFY_FAILED, TIMED_OUT,
+    ID_NOT_STABLE,
+}
 
 /** Re-pair and reset are locked in FOCUS; a first pairing never is (recovery, PLAN P4). */
 fun tagCards(pairings: Map<TagRole, TagPairing>, locked: Boolean): List<TagCard> =
@@ -51,6 +58,7 @@ fun tagCards(pairings: Map<TagRole, TagPairing>, locked: Boolean): List<TagCard>
             canPair = pairing == null,
             canRepair = pairing != null && !locked,
             canReset = pairing != null && !locked,
+            idOnly = pairing?.isIdOnly == true,
         )
     }
 
@@ -61,6 +69,8 @@ fun shortUid(uidHex: String): String = "…" + uidHex.takeLast(SHORT_UID_DIGITS)
 fun PairingResult.toPairingState(role: TagRole, completesSetup: Boolean): PairingState = when (this) {
     is PairingResult.Paired -> PairingState.Done(role, completesSetup)
     PairingResult.UidUsedByOtherRole -> PairingState.Failed(role, PairingError.UID_USED_BY_OTHER_ROLE)
+    is PairingResult.NeedsIdConfirmation -> PairingState.ConfirmingId(role, uidHex)
+    PairingResult.IdNotStable -> PairingState.Failed(role, PairingError.ID_NOT_STABLE)
     is PairingResult.WriteFailed -> PairingState.Failed(role, reason.toPairingError())
 }
 
@@ -68,6 +78,8 @@ private fun WriteFailure.toPairingError(): PairingError = when (this) {
     WriteFailure.READ_ONLY -> PairingError.READ_ONLY
     WriteFailure.TOO_SMALL -> PairingError.TOO_SMALL
     WriteFailure.NOT_NDEF -> PairingError.NOT_NDEF
+    WriteFailure.TAG_LOST -> PairingError.TAG_LOST
+    WriteFailure.REJECTED -> PairingError.REJECTED
     WriteFailure.IO_ERROR -> PairingError.IO_ERROR
     WriteFailure.VERIFY_FAILED -> PairingError.VERIFY_FAILED
 }

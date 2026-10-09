@@ -31,8 +31,8 @@ abstract class TagPairingFixture {
     protected val engine = FakeFocusEngine()
     protected val tagA = FakeTagHandle(ScannedTag("04A1B2C3D4E5F6", emptyList()))
     protected val tagB = FakeTagHandle(ScannedTag("04F6E5D4C3B2A1", emptyList()))
-    protected val pairedA = TagPairing(TagRole.ACTIVATE, "id-a", tagA.scanned.uidHex)
-    protected val pairedB = TagPairing(TagRole.DEACTIVATE, "id-b", tagB.scanned.uidHex)
+    protected val pairedA = TagPairing.written(TagRole.ACTIVATE, "id-a", tagA.scanned.uidHex)
+    protected val pairedB = TagPairing.written(TagRole.DEACTIVATE, "id-b", tagB.scanned.uidHex)
 
     protected fun test(block: suspend TestScope.(TagPairingViewModel) -> Unit) = runTest(mainRule.dispatcher) {
         val viewModel = TagPairingViewModel(repository, writer, gateway, engine)

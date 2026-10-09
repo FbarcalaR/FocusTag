@@ -11,8 +11,11 @@ import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
+import dagger.multibindings.IntoSet
 import io.github.fbarcalar.focustag.di.ApplicationScope
 import io.github.fbarcalar.focustag.di.IoDispatcher
+import io.github.fbarcalar.focustag.focus.AppStartHook
+import io.github.fbarcalar.focustag.nfc.IdOnlyScanSwitch
 import io.github.fbarcalar.focustag.nfc.PairingRepository
 import io.github.fbarcalar.focustag.nfc.NfcTagWriter
 import io.github.fbarcalar.focustag.nfc.TagPairingStore
@@ -29,6 +32,10 @@ abstract class NfcModule {
 
     @Binds
     abstract fun tagWriter(writer: NfcTagWriter): TagWriter
+
+    @Binds
+    @IntoSet
+    abstract fun idOnlyScanSwitch(switch: IdOnlyScanSwitch): AppStartHook
 
     companion object {
         private const val PAIRINGS_FILE = "tag_pairings"

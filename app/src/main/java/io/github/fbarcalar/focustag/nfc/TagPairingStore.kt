@@ -14,7 +14,11 @@ import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 
-/** Pairings persisted in the `tag_pairings` DataStore (D-11). A role missing either key is unpaired. */
+/**
+ * Pairings persisted in the `tag_pairings` DataStore (D-11, D-62). Per role: the UID, plus either
+ * the written tag id or the `id_only` method marker. Older data without a method is a written tag;
+ * a role missing what its method needs is unpaired.
+ */
 class TagPairingStore(private val dataStore: DataStore<Preferences>) : PairingRepository {
     override val pairings: Flow<Map<TagRole, TagPairing>> =
         dataStore.consistentData()
@@ -40,9 +44,10 @@ class TagPairingStore(private val dataStore: DataStore<Preferences>) : PairingRe
         TagRole.entries.mapNotNull { role -> pairingOf(role)?.let { role to it } }.toMap()
 
     private fun Preferences.pairingOf(role: TagRole): TagPairing? {
-        val tagId = this[tagIdKey(role)] ?: return null
         val uid = uidOf(role) ?: return null
-        return TagPairing(role, tagId, uid)
+        if (this[methodKey(role)] == ID_ONLY) return TagPairing.idOnly(role, uid)
+        val tagId = this[tagIdKey(role)] ?: return null
+        return TagPairing.written(role, tagId, uid)
     }
 
     private fun Preferences.uidOf(role: TagRole): String? = this[uidKey(role)]
@@ -57,13 +62,18 @@ class TagPairingStore(private val dataStore: DataStore<Preferences>) : PairingRe
         }
 
     private fun MutablePreferences.write(pairing: TagPairing) {
-        this[tagIdKey(pairing.role)] = pairing.tagId
+        remove(pairing.role)
         this[uidKey(pairing.role)] = pairing.uidHex
+        when (val proof = pairing.proof) {
+            is TagProof.WrittenId -> this[tagIdKey(pairing.role)] = proof.tagId
+            TagProof.HardwareIdOnly -> this[methodKey(pairing.role)] = ID_ONLY
+        }
     }
 
     private fun MutablePreferences.remove(role: TagRole) {
         remove(tagIdKey(role))
         remove(uidKey(role))
+        remove(methodKey(role))
     }
 
     private fun TagRole.other(): TagRole = when (this) {
@@ -74,4 +84,10 @@ class TagPairingStore(private val dataStore: DataStore<Preferences>) : PairingRe
     private fun tagIdKey(role: TagRole) = stringPreferencesKey("${role.name.lowercase()}_tag_id")
 
     private fun uidKey(role: TagRole) = stringPreferencesKey("${role.name.lowercase()}_uid")
+
+    private fun methodKey(role: TagRole) = stringPreferencesKey("${role.name.lowercase()}_method")
+
+    private companion object {
+        const val ID_ONLY = "id_only"
+    }
 }

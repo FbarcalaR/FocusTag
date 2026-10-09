@@ -115,17 +115,19 @@ abstract class FocusTagE2E {
     }
 
     protected fun scanTag(role: TagRole) {
-        val tag = HarnessTags.of(role)
-        scan(HarnessTags.scanOf(tag.uidHex, HarnessTags.uriFor(tag.tagId)))
+        scan(HarnessTags.scanOf(HarnessTags.of(role).uidHex, HarnessTags.uriFor(HarnessTags.tagIdOf(role))))
     }
 
     protected fun scanTagWithWrongUid(role: TagRole) =
-        scan(HarnessTags.scanOf(HarnessTags.UNKNOWN_UID, HarnessTags.uriFor(HarnessTags.of(role).tagId)))
+        scan(HarnessTags.scanOf(HarnessTags.UNKNOWN_UID, HarnessTags.uriFor(HarnessTags.tagIdOf(role))))
 
     protected fun scanUnknownTag() =
         scan(HarnessTags.scanOf(HarnessTags.UNKNOWN_UID, HarnessTags.uriFor(HarnessTags.UNKNOWN_TAG_ID)))
 
     protected fun scanForeignUri() = scan(HarnessTags.scanOf(HarnessTags.UNKNOWN_UID, HarnessTags.FOREIGN_URI))
+
+    /** A card with no NDEF data, as the `TECH_DISCOVERED` alias delivers it (D-62). */
+    protected fun scanCard(uidHex: String) = scan(ScannedTag(uidHex, emptyList()))
 
     /** Calls the engine directly, bypassing NFC (for slices that run before T3 lands). */
     protected fun scanTagDirect(role: TagRole) = runBlocking { graph.focusController().onTagScanned(role) }

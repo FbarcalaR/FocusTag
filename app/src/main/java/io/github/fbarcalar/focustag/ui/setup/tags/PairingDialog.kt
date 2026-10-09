@@ -28,6 +28,10 @@ fun PairingDialog(state: PairingState, onEvent: (TagEvent) -> Unit) {
                 TextButton(onClick = dismiss) { Text(stringResource(R.string.setup_cancel)) }
             }
         is PairingState.Writing -> SessionDialog(state.role, R.string.setup_pairing_writing, progress = true, onDismiss = {})
+        is PairingState.ConfirmingId ->
+            SessionDialog(state.role, R.string.setup_pairing_confirm_id, progress = true, onDismiss = dismiss) {
+                TextButton(onClick = dismiss) { Text(stringResource(R.string.setup_cancel)) }
+            }
         is PairingState.Failed ->
             SessionDialog(state.role, state.error.messageRes(), progress = false, onDismiss = dismiss, dismissButton = {
                 TextButton(onClick = dismiss) { Text(stringResource(R.string.setup_pairing_close)) }
@@ -76,9 +80,12 @@ private fun PairingError.messageRes(): Int = when (this) {
     PairingError.READ_ONLY -> R.string.setup_pairing_error_read_only
     PairingError.TOO_SMALL -> R.string.setup_pairing_error_too_small
     PairingError.NOT_NDEF -> R.string.setup_pairing_error_not_ndef
+    PairingError.TAG_LOST -> R.string.setup_pairing_error_tag_lost
+    PairingError.REJECTED -> R.string.setup_pairing_error_rejected
     PairingError.IO_ERROR -> R.string.setup_pairing_error_io
     PairingError.VERIFY_FAILED -> R.string.setup_pairing_error_verify
     PairingError.TIMED_OUT -> R.string.setup_pairing_error_timeout
+    PairingError.ID_NOT_STABLE -> R.string.setup_pairing_error_id_not_stable
 }
 
 @Preview
@@ -91,6 +98,12 @@ private fun PairingWaitingPreview() {
 @Composable
 private fun PairingWritingPreview() {
     FocusTagTheme { PairingDialog(PairingState.Writing(TagRole.ACTIVATE), onEvent = {}) }
+}
+
+@Preview
+@Composable
+private fun PairingConfirmingIdPreview() {
+    FocusTagTheme { PairingDialog(PairingState.ConfirmingId(TagRole.DEACTIVATE, "04A1B2C3D4E5F6"), onEvent = {}) }
 }
 
 @Preview
