@@ -66,15 +66,17 @@ class SetupDestinationTest {
 
     private fun awaitText(id: Int) = composeRule.waitUntilAtLeastOneExists(hasText(app.getString(id)), TIMEOUT_MILLIS)
 
+    /** Reader mode starts once the tags have loaded from disk, a moment after the screen first draws. */
+    private fun awaitReaderModeOn() = composeRule.waitUntil(TIMEOUT_MILLIS) { gateway.readerModeEnabled }
+
     @Test
     fun `reader mode is on while setup is shown and off once the activity is gone`() {
         launch()
         awaitText(R.string.title_setup)
-        val whileShown = gateway.readerModeEnabled
+        awaitReaderModeOn()
 
         scenario.close()
 
-        assertThat(whileShown).isTrue()
         assertThat(gateway.readerModeEnabled).isFalse()
     }
 
@@ -89,12 +91,11 @@ class SetupDestinationTest {
         composeRule.waitUntilAtLeastOneExists(hasContentDescription(openSetup), TIMEOUT_MILLIS)
         composeRule.onNodeWithContentDescription(openSetup).performClick()
         awaitText(R.string.title_setup)
-        val whileShown = gateway.readerModeEnabled
+        awaitReaderModeOn()
 
         composeRule.onNodeWithContentDescription(app.getString(R.string.action_back)).performClick()
         composeRule.waitUntilAtLeastOneExists(hasContentDescription(openSetup), TIMEOUT_MILLIS)
 
-        assertThat(whileShown).isTrue()
         assertThat(gateway.readerModeEnabled).isFalse()
     }
 
