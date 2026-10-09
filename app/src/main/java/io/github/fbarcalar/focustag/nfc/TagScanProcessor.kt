@@ -30,7 +30,7 @@ enum class ScanFeedback(@param:StringRes val message: Int) {
     }
 }
 
-/** Validates a background scan and forwards a valid one to the engine exactly once (D-12, D-13). */
+/** Validates a scan from outside Setup and forwards a valid one to the engine exactly once (D-12, D-13). */
 class TagScanProcessor @Inject constructor(
     private val repository: PairingRepository,
     private val controller: FocusController,
@@ -38,10 +38,10 @@ class TagScanProcessor @Inject constructor(
     private val clock: Clock,
 ) {
     /** The feedback to show, or null when the scan is ignored (invalid tag, or the disk failed). */
-    suspend fun process(scan: ScannedTag): ScanFeedback? = try {
+    suspend fun process(scan: ScannedTag, source: TapSource = TapSource.BACKGROUND): ScanFeedback? = try {
         val result = TagValidator.validate(scan, repository.pairings.first())
         val role = (result as? TagScanResult.Valid)?.role
-        tapLog.record(LastTap(scan.uidHex, clock.instant(), role))
+        tapLog.record(LastTap(scan.uidHex, clock.instant(), role, source))
         role?.let { ScanFeedback.of(it, controller.onTagScanned(it)) }
     } catch (_: IOException) {
         null

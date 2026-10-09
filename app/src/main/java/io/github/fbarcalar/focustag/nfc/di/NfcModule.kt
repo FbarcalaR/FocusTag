@@ -15,6 +15,7 @@ import dagger.multibindings.IntoSet
 import io.github.fbarcalar.focustag.di.ApplicationScope
 import io.github.fbarcalar.focustag.di.IoDispatcher
 import io.github.fbarcalar.focustag.focus.AppStartHook
+import io.github.fbarcalar.focustag.nfc.CardScanningStatus
 import io.github.fbarcalar.focustag.nfc.IdOnlyScanSwitch
 import io.github.fbarcalar.focustag.nfc.PairingRepository
 import io.github.fbarcalar.focustag.nfc.NfcTagWriter
@@ -37,6 +38,9 @@ abstract class NfcModule {
 
     @Binds
     abstract fun tapLog(store: TapLogStore): TapLog
+
+    @Binds
+    abstract fun cardScanningStatus(switch: IdOnlyScanSwitch): CardScanningStatus
 
     @Binds
     @IntoSet

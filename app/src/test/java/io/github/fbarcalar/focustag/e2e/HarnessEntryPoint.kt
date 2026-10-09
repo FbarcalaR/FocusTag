@@ -8,6 +8,7 @@ import io.github.fbarcalar.focustag.di.AppStartRunner
 import io.github.fbarcalar.focustag.focus.FocusController
 import io.github.fbarcalar.focustag.focus.FocusStateReader
 import io.github.fbarcalar.focustag.nfc.PairingRepository
+import io.github.fbarcalar.focustag.nfc.TapLog
 import io.github.fbarcalar.focustag.system.PermissionChecker
 import io.github.fbarcalar.focustag.testing.FakeClock
 import io.github.fbarcalar.focustag.testing.FakeNfcGateway
@@ -19,6 +20,7 @@ interface HarnessEntryPoint {
     fun focusController(): FocusController
     fun focusStateReader(): FocusStateReader
     fun pairingRepository(): PairingRepository
+    fun tapLog(): TapLog
     fun blockListRepository(): BlockListRepository
     fun permissionChecker(): PermissionChecker
     fun fakeNfcGateway(): FakeNfcGateway

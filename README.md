@@ -190,6 +190,13 @@ Notes:
    * the new tap with *not recognised* → FocusTag got it but the ID didn't match; compare the ID shown with
      the one on the tag card, and re-pair if they differ.
 3. Leave Setup before tapping: while it's open, tag taps never switch focus.
+4. **Open FocusTag (the Status screen) and tap.** While Status is open, FocusTag reads tags itself, so this
+   works even when Android doesn't pass background taps on. Every tap shows a toast; an unknown tag says
+   *Not a paired FocusTag tag*. If this works but taps with the app closed don't, the problem is Android's
+   background routing.
+5. **Setup → Debug details → Show.** For a card paired by ID, *Background card scanning* must be *on*.
+   *off (never switched on)* means FocusTag's start-up step never ran: force-stop the app, open it once and
+   check again. Note what it says when you report the problem.
 
 ## Manual checks
 

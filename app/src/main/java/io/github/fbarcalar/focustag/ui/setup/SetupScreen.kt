@@ -33,6 +33,8 @@ import io.github.fbarcalar.focustag.focus.TagRole
 import io.github.fbarcalar.focustag.ui.setup.blocklist.BlockListEvent
 import io.github.fbarcalar.focustag.ui.setup.blocklist.BlockListUiState
 import io.github.fbarcalar.focustag.ui.setup.blocklist.blockListSection
+import io.github.fbarcalar.focustag.ui.setup.debug.DebugDetails
+import io.github.fbarcalar.focustag.ui.setup.debug.DebugSection
 import io.github.fbarcalar.focustag.ui.setup.permissions.PermissionEvent
 import io.github.fbarcalar.focustag.ui.setup.permissions.PermissionsUiState
 import io.github.fbarcalar.focustag.ui.setup.permissions.permissionSection
@@ -42,18 +44,19 @@ import io.github.fbarcalar.focustag.ui.setup.tags.TagSection
 import io.github.fbarcalar.focustag.ui.setup.tags.TagsUiState
 import io.github.fbarcalar.focustag.ui.theme.FocusTagTheme
 
-/** The three sections' states and event sinks. */
+/** The sections' states and event sinks. */
 data class SetupSections(
     val tags: TagsUiState,
     val permissions: PermissionsUiState,
     val blockList: BlockListUiState,
+    val debug: DebugDetails? = null,
     val onTagEvent: (TagEvent) -> Unit = {},
     val onPermissionEvent: (PermissionEvent) -> Unit = {},
     val onBlockListEvent: (BlockListEvent) -> Unit = {},
     val loadIcon: suspend (String) -> Bitmap? = { null },
 )
 
-/** Stateless Setup screen: Tags, Permissions, then the (long) Block list in one list. */
+/** Stateless Setup screen: Tags, Debug details, Permissions, then the (long) Block list in one list. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SetupScreen(sections: SetupSections, onBack: (() -> Unit)?) {
@@ -78,6 +81,7 @@ fun SetupScreen(sections: SetupSections, onBack: (() -> Unit)?) {
 private fun LazyListScope.sections(sections: SetupSections, onRequestReset: (TagRole) -> Unit) {
     if (sections.tags.focusLocked) item(key = "focus-locked") { FocusLockedCard() }
     item(key = "tags") { TagSection(sections.tags, sections.onTagEvent, onRequestReset) }
+    item(key = "debug") { DebugSection(sections.debug) }
     item(key = "divider-permissions") { HorizontalDivider() }
     permissionSection(sections.permissions, sections.onPermissionEvent)
     item(key = "divider-block-list") { HorizontalDivider() }

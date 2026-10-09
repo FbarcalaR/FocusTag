@@ -139,6 +139,9 @@ sealed interface PairingResult {
     data class WriteFailed(val reason: WriteFailure) : PairingResult
 }
 
+/** Who handed FocusTag a tap: Android's background tag dispatch, or the app's own reader mode (D-65). */
+enum class TapSource { BACKGROUND, IN_APP }
+
 /**
  * The latest tag tap FocusTag received outside Setup (D-63), shown in Setup so the user can tell a
  * tap Android never delivered apart from one the app ignored.
@@ -146,12 +149,18 @@ sealed interface PairingResult {
  * @property uidHex hardware UID of the tapped tag.
  * @property at when it was tapped.
  * @property recognisedAs the role it matched, or null when it was ignored.
+ * @property source how the tap reached FocusTag.
  */
-data class LastTap(val uidHex: String, val at: Instant, val recognisedAs: TagRole?)
+data class LastTap(
+    val uidHex: String,
+    val at: Instant,
+    val recognisedAs: TagRole?,
+    val source: TapSource = TapSource.BACKGROUND,
+)
 
 /** Remembers the [LastTap]. */
 interface TapLog {
-    /** The latest background tap, or null before the first one. */
+    /** The latest tap outside Setup, or null before the first one. */
     val lastTap: Flow<LastTap?>
 
     /** Replaces the remembered tap with [tap]. */
@@ -187,4 +196,18 @@ interface TagWriter {
      * [firstUidHex] as the first tap; otherwise [PairingResult.IdNotStable].
      */
     suspend fun confirmIdOnly(tag: NfcTagHandle, role: TagRole, firstUidHex: String): PairingResult
+}
+
+/** Whether Android may hand card taps to FocusTag in the background (D-62, D-65). */
+enum class CardScanning {
+    ON,
+    OFF,
+
+    /** Still the manifest default (off): FocusTag never switched it, so its start-up hook never ran. */
+    NEVER_SWITCHED,
+}
+
+/** Reads the current [CardScanning] state. */
+fun interface CardScanningStatus {
+    fun current(): CardScanning
 }

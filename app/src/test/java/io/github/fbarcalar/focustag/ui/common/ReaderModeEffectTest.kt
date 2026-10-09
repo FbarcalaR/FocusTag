@@ -1,4 +1,4 @@
-package io.github.fbarcalar.focustag.ui.setup.tags
+package io.github.fbarcalar.focustag.ui.common
 
 import androidx.activity.ComponentActivity
 import androidx.compose.runtime.getValue
