@@ -11,6 +11,7 @@
     <string name="setup_tag_deactivate_title">Tag B · Living room</string>
     <string name="setup_tag_deactivate_role">Ends focus</string>
     <string name="setup_tag_paired">Paired · %1$s</string>
+    <string name="setup_tag_paired_id_only">Paired by ID only · %1$s</string>
     <string name="setup_tag_unpaired">Not paired</string>
     <string name="setup_tag_pair">Pair</string>
     <string name="setup_tag_repair">Re-pair</string>
@@ -41,6 +42,8 @@
     <string name="setup_pairing_error_io">Couldn\'t save the pairing on this phone. Try again.</string>
     <string name="setup_pairing_error_verify">The tag was prepared. Tap it again to finish.</string>
     <string name="setup_pairing_error_timeout">No tag found.</string>
+    <string name="setup_pairing_confirm_id">This card can\'t store FocusTag data, but it can be paired by its ID. Tap the same card again to confirm.\n\nThis is weaker than a written tag: a copy of the card\'s ID would also work.</string>
+    <string name="setup_pairing_error_id_not_stable">This card changes its ID on every tap (or a different card was tapped), so it can\'t be recognised. Use another card or an NTAG213/215/216 sticker.</string>
 
     <!-- Permissions -->
     <string name="setup_permissions_title">Permissions</string>

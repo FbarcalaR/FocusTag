@@ -12,7 +12,8 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
 /**
- * Invisible target of the manifest `NDEF_DISCOVERED` filter (D-13): validates the scan, toggles
+ * Invisible target of the manifest `NDEF_DISCOVERED` filter (D-13) and, through the
+ * `IdOnlyScanTrigger` alias, of `TECH_DISCOVERED` for ID-only cards (D-62): validates the scan, toggles
  * focus, toasts, finishes. The toggle runs on the app scope so a destroyed activity cannot cancel
  * it; the activity stays resumed until it is done so the process keeps foreground priority.
  */

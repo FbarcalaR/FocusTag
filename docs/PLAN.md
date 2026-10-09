@@ -104,6 +104,7 @@ E2E tests are **not** a final phase. T1 ships an E2E harness: `test/.../e2e/Focu
 | E2E-11 Status screen reflects scans live (FREE → FOCUS → FREE), no exit control | T2, T3, T6 | **T6** · `E2E11StatusReflectsScansTest` |
 | E2E-12 Setup: pair A and B via fake gateway → app routes to Status; reset blocked in FOCUS | T2, T3, T7 | **T7** · `E2E12SetupPairingTest` |
 | E2E-13 Setup: remove app from block list blocked in FOCUS, allowed in FREE | T2, T5, T7 | **T7** · `E2E13BlockListRemovalGatedTest` |
+| E2E-14 Card paired by ID only ends focus; unknown card and a sticker's bare UID are ignored; card scans enabled (D-62) | T2, T3 | follow-up · `E2E14IdOnlyCardTest` |
 
 Merges now follow readiness, not the G2 order in §4 (T2, then T3). "Written by" names the task that wrote the scenario (in bold), or the task expected to complete its set.
 
@@ -1133,3 +1134,4 @@ Cross-layer E2E scenarios (§2.2) are written during each merge, so every group 
 * **MC-12** Session timer and today's total look right over a session that crosses midnight (or by changing the device time).
 * **MC-13** TalkBack: the mode is announced as a heading and on change, the timers are read as words ("1 hour, 5 minutes"), and the warning banner is one button.
 * **MC-14** NFC off: Setup shows the NFC prompt, its button opens NFC settings, and the prompt clears once NFC is back on.
+* **MC-15** Card paired by ID only (D-62): a transport/access card pairs after a second tap, toggles focus with the app closed and after a reboot; other cards are ignored; card scans turn off again once no card is paired by ID.

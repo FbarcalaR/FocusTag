@@ -60,6 +60,16 @@ class TagDialogsTest {
     }
 
     @Test
+    fun `confirming a card's id asks for a second tap and can be cancelled`() {
+        showDialogs(PairingState.ConfirmingId(TagRole.DEACTIVATE, "5A3B9C21"))
+
+        composeRule.onNodeWithText(text(R.string.setup_pairing_confirm_id)).assertExists()
+        composeRule.onNodeWithText(text(R.string.setup_cancel)).performClick()
+
+        assertThat(events).containsExactly(TagEvent.Dismiss)
+    }
+
+    @Test
     fun `a failure shows its message and try again restarts the same role`() {
         showDialogs(PairingState.Failed(TagRole.DEACTIVATE, PairingError.VERIFY_FAILED))
 
@@ -93,6 +103,7 @@ class TagDialogsTest {
             PairingError.IO_ERROR to R.string.setup_pairing_error_io,
             PairingError.VERIFY_FAILED to R.string.setup_pairing_error_verify,
             PairingError.TIMED_OUT to R.string.setup_pairing_error_timeout,
+            PairingError.ID_NOT_STABLE to R.string.setup_pairing_error_id_not_stable,
         )
         var pairing by mutableStateOf<PairingState>(PairingState.Idle)
         composeRule.setContent { TagDialogs(pairing, resetRole = null, onEvent = {}, onResetDismiss = {}) }

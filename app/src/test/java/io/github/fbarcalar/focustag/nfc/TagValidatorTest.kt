@@ -5,8 +5,8 @@ import io.github.fbarcalar.focustag.focus.TagRole
 import org.junit.Test
 
 class TagValidatorTest {
-    private val a = TagPairing(TagRole.ACTIVATE, "6f1d2c3b-4a59-4e8f-9a01-0b2c3d4e5f60", "04A1B2C3D4E5F6")
-    private val b = TagPairing(TagRole.DEACTIVATE, "0e9f8a7b-6c5d-4e3f-8a1b-2c3d4e5f6a7b", "04F6E5D4C3B2A1")
+    private val a = TagPairing.written(TagRole.ACTIVATE, "6f1d2c3b-4a59-4e8f-9a01-0b2c3d4e5f60", "04A1B2C3D4E5F6")
+    private val b = TagPairing.written(TagRole.DEACTIVATE, "0e9f8a7b-6c5d-4e3f-8a1b-2c3d4e5f6a7b", "04F6E5D4C3B2A1")
     private val pairings = mapOf(TagRole.ACTIVATE to a, TagRole.DEACTIVATE to b)
 
     private fun scanOf(pairing: TagPairing, uid: String = pairing.uidHex) =
@@ -60,7 +60,7 @@ class TagValidatorTest {
 
     @Test
     fun `the old id of a re-paired tag is unknown`() {
-        val repaired = mapOf(TagRole.ACTIVATE to a.copy(tagId = "22222222-3333-4444-8555-666666666666"))
+        val repaired = mapOf(TagRole.ACTIVATE to a.withTagId("22222222-3333-4444-8555-666666666666"))
 
         assertThat(TagValidator.validate(scanOf(a), repaired)).isEqualTo(TagScanResult.Unknown)
     }

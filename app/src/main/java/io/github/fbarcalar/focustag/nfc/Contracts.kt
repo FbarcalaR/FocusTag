@@ -69,7 +69,7 @@ interface NfcGateway {
     /** Current adapter state; emits again when the user toggles NFC. */
     val availability: Flow<NfcAvailability>
 
-    /** Parses an `NDEF_DISCOVERED` intent; null when the intent carries no tag. */
+    /** Parses an `NDEF_DISCOVERED` or `TECH_DISCOVERED` intent; null when the intent carries no tag. */
     fun readTag(intent: Intent): ScannedTag?
 
     /** Gives [activity] exclusive tag access (D-14). [onTag] runs on a binder thread. */
@@ -82,14 +82,34 @@ interface NfcGateway {
     suspend fun writeFocusTag(tag: NfcTagHandle, uri: String): WriteResult
 }
 
+/** How a paired tag proves it is ours (D-12, D-62). */
+sealed interface TagProof {
+    /** A writable tag carrying our URI with [tagId]; the scan needs the URI **and** the UID. */
+    data class WrittenId(val tagId: String) : TagProof
+
+    /** A card that cannot be written; the scan needs its (stable) hardware UID only. */
+    data object HardwareIdOnly : TagProof
+}
+
 /**
  * A paired tag (D-11).
  *
  * @property role what scanning this tag does.
- * @property tagId random UUID written into the tag's URI.
  * @property uidHex hardware UID the scan must match (D-12).
+ * @property proof what else the scan must carry.
  */
-data class TagPairing(val role: TagRole, val tagId: String, val uidHex: String)
+data class TagPairing(val role: TagRole, val uidHex: String, val proof: TagProof) {
+    /** True when the tag is recognised by its hardware UID alone. */
+    val isIdOnly: Boolean get() = proof == TagProof.HardwareIdOnly
+
+    companion object {
+        /** A writable tag with our URI [tagId]. */
+        fun written(role: TagRole, tagId: String, uidHex: String) = TagPairing(role, uidHex, TagProof.WrittenId(tagId))
+
+        /** A card paired by its hardware UID only. */
+        fun idOnly(role: TagRole, uidHex: String) = TagPairing(role, uidHex, TagProof.HardwareIdOnly)
+    }
+}
 
 /** True when every [TagRole] has a pairing. */
 fun Map<TagRole, TagPairing>.isComplete(): Boolean = TagRole.entries.all { it in this }
@@ -101,6 +121,12 @@ sealed interface PairingResult {
 
     /** The tag's UID already belongs to the other role; nothing changed. */
     data object UidUsedByOtherRole : PairingResult
+
+    /** The tag cannot be written but may be paired by [uidHex]; the same tag must be tapped again. */
+    data class NeedsIdConfirmation(val uidHex: String) : PairingResult
+
+    /** The tag's UID is random (it changes on every tap), so it cannot be paired by ID. */
+    data object IdNotStable : PairingResult
 
     /** Writing failed for [reason]; the existing pairing is untouched. */
     data class WriteFailed(val reason: WriteFailure) : PairingResult
@@ -129,4 +155,10 @@ interface PairingRepository {
 interface TagWriter {
     /** Pairs the tag in the field as [role]. */
     suspend fun pair(tag: NfcTagHandle, role: TagRole): PairingResult
+
+    /**
+     * Second tap of an ID-only pairing (D-62): stores [role] by UID when [tag] shows the same
+     * [firstUidHex] as the first tap; otherwise [PairingResult.IdNotStable].
+     */
+    suspend fun confirmIdOnly(tag: NfcTagHandle, role: TagRole, firstUidHex: String): PairingResult
 }

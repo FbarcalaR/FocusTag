@@ -11,6 +11,7 @@ import io.github.fbarcalar.focustag.nfc.NfcAvailability
 import io.github.fbarcalar.focustag.nfc.NfcGateway
 import io.github.fbarcalar.focustag.nfc.NfcTagHandle
 import io.github.fbarcalar.focustag.nfc.PairingRepository
+import io.github.fbarcalar.focustag.nfc.PairingResult
 import io.github.fbarcalar.focustag.nfc.TagPairing
 import io.github.fbarcalar.focustag.nfc.TagWriter
 import io.github.fbarcalar.focustag.nfc.isComplete
@@ -53,8 +54,9 @@ class TagPairingViewModel @Inject constructor(
     fun startPairing(role: TagRole) {
         viewModelScope.launch {
             if (pairing.value is PairingState.Writing || !canStartPairing(role)) return@launch
-            pairing.value = PairingState.WaitingForTag(role)
-            startTimeout(role)
+            val waiting = PairingState.WaitingForTag(role)
+            pairing.value = waiting
+            startTimeout(waiting, role)
         }
     }
 
@@ -76,24 +78,34 @@ class TagPairingViewModel @Inject constructor(
 
     fun disableReaderMode(activity: Activity) = nfcGateway.disableReaderMode(activity)
 
-    /** Reader-mode callback (binder thread): only a tag awaited by a session is written. */
+    /** Reader-mode callback (binder thread): only a tag awaited by a session is handled. */
     internal fun onTagDiscovered(tag: NfcTagHandle) {
         viewModelScope.launch {
-            val waiting = pairing.value as? PairingState.WaitingForTag ?: return@launch
-            timeout?.cancel()
-            pairing.value = PairingState.Writing(waiting.role)
-            val wasComplete = pairingRepository.pairings.first().isComplete()
-            val result = tagWriter.pair(tag, waiting.role)
-            val completesSetup = !wasComplete && pairingRepository.pairings.first().isComplete()
-            pairing.value = result.toPairingState(waiting.role, completesSetup)
+            when (val awaiting = pairing.value) {
+                is PairingState.WaitingForTag -> handle(awaiting.role) { tagWriter.pair(tag, awaiting.role) }
+                is PairingState.ConfirmingId ->
+                    handle(awaiting.role) { tagWriter.confirmIdOnly(tag, awaiting.role, awaiting.uidHex) }
+                else -> Unit
+            }
         }
     }
 
-    private fun startTimeout(role: TagRole) {
+    private suspend fun handle(role: TagRole, attempt: suspend () -> PairingResult) {
+        timeout?.cancel()
+        pairing.value = PairingState.Writing(role)
+        val wasComplete = pairingRepository.pairings.first().isComplete()
+        val result = attempt()
+        val completesSetup = !wasComplete && pairingRepository.pairings.first().isComplete()
+        val next = result.toPairingState(role, completesSetup)
+        pairing.value = next
+        if (next is PairingState.ConfirmingId) startTimeout(next, role)
+    }
+
+    private fun startTimeout(awaiting: PairingState, role: TagRole) {
         timeout?.cancel()
         timeout = viewModelScope.launch {
             delay(PAIRING_TIMEOUT)
-            if (pairing.value == PairingState.WaitingForTag(role)) {
+            if (pairing.value == awaiting) {
                 pairing.value = PairingState.Failed(role, PairingError.TIMED_OUT)
             }
         }
@@ -104,14 +116,21 @@ class TagPairingViewModel @Inject constructor(
 
     private suspend fun endWaitingWhenNoLongerAllowed() {
         combine(pairingRepository.pairings, nfcGateway.availability, locked, ::Conditions).collect { conditions ->
-            val waiting = pairing.value as? PairingState.WaitingForTag ?: return@collect
-            if (!conditions.allowPairing(waiting.role)) dismiss()
+            val role = pairing.value.awaitedRole() ?: return@collect
+            if (!conditions.allowPairing(role)) dismiss()
         }
     }
 
     private data class Conditions(val pairings: Map<TagRole, TagPairing>, val nfc: NfcAvailability, val locked: Boolean) {
         fun allowPairing(role: TagRole) =
             nfc == NfcAvailability.ENABLED && tagCards(pairings, locked).first { it.role == role }.canStartPairing
+    }
+
+    /** The role of a session waiting for a tap, or null when nothing is awaited. */
+    private fun PairingState.awaitedRole(): TagRole? = when (this) {
+        is PairingState.WaitingForTag -> role
+        is PairingState.ConfirmingId -> role
+        else -> null
     }
 
     private companion object {

@@ -6,7 +6,7 @@ import io.github.fbarcalar.focustag.nfc.TagPairing
 import org.junit.Test
 
 class TagCardsTest {
-    private val pairedA = TagPairing(TagRole.ACTIVATE, "id-a", "04A1B2C3D4E5F6")
+    private val pairedA = TagPairing.written(TagRole.ACTIVATE, "id-a", "04A1B2C3D4E5F6")
 
     @Test
     fun `an unpaired role can only be paired, in free time and in focus`() {
@@ -29,6 +29,15 @@ class TagCardsTest {
 
         assertThat(card.canStartPairing).isFalse()
         assertThat(card.canReset).isFalse()
+    }
+
+    @Test
+    fun `only a card paired by id is marked id-only`() {
+        val card = TagPairing.idOnly(TagRole.DEACTIVATE, "5A3B9C21")
+
+        val cards = tagCards(mapOf(TagRole.ACTIVATE to pairedA, TagRole.DEACTIVATE to card), locked = false)
+
+        assertThat(cards.map { it.idOnly }).containsExactly(false, true).inOrder()
     }
 
     @Test

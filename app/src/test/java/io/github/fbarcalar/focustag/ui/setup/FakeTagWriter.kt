@@ -25,6 +25,17 @@ class FakeTagWriter(private val repository: PairingRepository) : TagWriter {
         recorded += tag to role
         gate?.await()
         return results.removeFirstOrNull()
-            ?: repository.save(TagPairing(role, tagId = "tag-${recorded.size}", uidHex = tag.scanned.uidHex))
+            ?: repository.save(TagPairing.written(role, tagId = "tag-${recorded.size}", uidHex = tag.scanned.uidHex))
+    }
+
+    override suspend fun confirmIdOnly(tag: NfcTagHandle, role: TagRole, firstUidHex: String): PairingResult {
+        recorded += tag to role
+        gate?.await()
+        return results.removeFirstOrNull()
+            ?: if (tag.scanned.uidHex == firstUidHex) {
+                repository.save(TagPairing.idOnly(role, firstUidHex))
+            } else {
+                PairingResult.IdNotStable
+            }
     }
 }

@@ -8,11 +8,16 @@ import io.github.fbarcalar.focustag.nfc.ScannedTag
 import io.github.fbarcalar.focustag.testing.FakeNfcGateway
 import org.robolectric.Robolectric
 
-/** Delivers [scan] the way Android does for a background tag: an NDEF intent to the trigger activity. */
+/**
+ * Delivers [scan] the way Android does for a background tag: an NDEF intent to the trigger
+ * activity, or a `TECH_DISCOVERED` intent for a card without NDEF data (D-62).
+ */
 internal fun deliverScan(app: Application, gateway: FakeNfcGateway, scan: ScannedTag) {
     gateway.enqueueRead(scan)
-    val intent = Intent(HarnessTags.ACTION_NDEF_DISCOVERED, Uri.parse(scan.ndefUris.first()))
-        .setClass(app, NfcTriggerActivity::class.java)
+    val intent = scan.ndefUris.firstOrNull()
+        ?.let { uri -> Intent(HarnessTags.ACTION_NDEF_DISCOVERED, Uri.parse(uri)) }
+        ?: Intent(HarnessTags.ACTION_TECH_DISCOVERED)
+    intent.setClass(app, NfcTriggerActivity::class.java)
     Robolectric.buildActivity(NfcTriggerActivity::class.java, intent).setup()
     idleMainLooper()
 }

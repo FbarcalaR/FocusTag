@@ -27,7 +27,7 @@ class SetupScreenTest {
     val composeRule = createAndroidComposeRule<ComponentActivity>()
 
     private val events = mutableListOf<TagEvent>()
-    private val pairedA = mapOf(TagRole.ACTIVATE to TagPairing(TagRole.ACTIVATE, "id", "04A1B2C3D4E5F6"))
+    private val pairedA = mapOf(TagRole.ACTIVATE to TagPairing.written(TagRole.ACTIVATE, "id", "04A1B2C3D4E5F6"))
 
     private fun text(id: Int) = composeRule.activity.getString(id)
 
