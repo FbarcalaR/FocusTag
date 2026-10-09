@@ -38,9 +38,23 @@ class IdOnlyValidationTest {
     }
 
     @Test
-    fun `a focus tag uri on a card paired by id is judged by the uri, not the uid`() {
+    fun `a card paired by id still counts when it carries a stale focus tag uri`() {
         val scan = ScannedTag(cardB.uidHex, listOf(FocusTagUri.build("11111111-2222-4333-8444-555555555555")))
 
+        assertThat(TagValidator.validate(scan, pairings)).isEqualTo(TagScanResult.Valid(TagRole.DEACTIVATE))
+    }
+
+    @Test
+    fun `a stale focus tag uri on an unknown uid is unknown`() {
+        val scan = ScannedTag("5A000000", listOf(FocusTagUri.build("11111111-2222-4333-8444-555555555555")))
+
         assertThat(TagValidator.validate(scan, pairings)).isEqualTo(TagScanResult.Unknown)
+    }
+
+    @Test
+    fun `a sticker's uri on the id-only card's uid is still a uid mismatch`() {
+        val scan = ScannedTag(cardB.uidHex, listOf(FocusTagUri.build(stickerA.tagId)))
+
+        assertThat(TagValidator.validate(scan, pairings)).isEqualTo(TagScanResult.UidMismatch)
     }
 }

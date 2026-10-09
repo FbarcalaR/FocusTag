@@ -20,7 +20,7 @@ class NfcTagWriter @Inject constructor(
         val tagId = UUID.randomUUID().toString()
         when (val written = gateway.writeFocusTag(tag, FocusTagUri.build(tagId))) {
             WriteResult.Written -> repository.save(TagPairing.written(role, tagId, uid))
-            is WriteResult.Failed -> written.reason.toResult(uid)
+            is WriteResult.Failed -> written.reason.toResult(tag.scanned)
         }
     }
 
@@ -32,10 +32,10 @@ class NfcTagWriter @Inject constructor(
             }
         }
 
-    private fun WriteFailure.toResult(uid: String): PairingResult = when {
-        this !in HardwareId.idOnlyEligible -> PairingResult.WriteFailed(this)
-        HardwareId.isKnownUnstable(uid) -> PairingResult.IdNotStable
-        else -> PairingResult.NeedsIdConfirmation(uid)
+    private fun WriteFailure.toResult(tag: ScannedTag): PairingResult = when {
+        !HardwareId.mayPairById(this, tag) -> PairingResult.WriteFailed(this)
+        HardwareId.isKnownUnstable(tag.uidHex) -> PairingResult.IdNotStable
+        else -> PairingResult.NeedsIdConfirmation(tag.uidHex)
     }
 
     private suspend fun isPairedToOtherRole(uid: String, role: TagRole): Boolean =

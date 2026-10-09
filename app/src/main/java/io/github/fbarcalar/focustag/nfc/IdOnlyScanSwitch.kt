@@ -36,7 +36,8 @@ class IdOnlyScanSwitch @Inject constructor(
 
     companion object {
         /** The manifest `<activity-alias>` that routes `TECH_DISCOVERED` to [NfcTriggerActivity]. */
-        fun component(context: Context) =
-            ComponentName(context, "${NfcTriggerActivity::class.java.`package`?.name}.IdOnlyScanTrigger")
+        fun component(context: Context) = ComponentName(context, ALIAS)
+
+        private const val ALIAS = "io.github.fbarcalar.focustag.nfc.IdOnlyScanTrigger"
     }
 }

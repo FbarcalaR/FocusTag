@@ -157,7 +157,8 @@ Notes:
   "by ID only" (the tag card says so). This is weaker than a written sticker, because a copy of the card's ID
   would also work. Cards that change their ID on every tap (most bank cards, passports, many newer transport
   cards) can't be used: the app says "This card changes its ID on every tap". NTAG213/215/216 stickers, cards or
-  keyfobs remain the recommended option.
+  keyfobs remain the recommended option. A tag that already opens another app or link when tapped can't be paired
+  by ID either, because Android would open that link instead of FocusTag.
 * While a card is paired by ID only, tapping **any** card on the unlocked phone briefly opens FocusTag's invisible
   scan screen, which ignores unknown cards. If only stickers are paired, this never happens.
 * **While Setup is open, tag scans don't switch focus** (the screen says so). This keeps a pairing tap from

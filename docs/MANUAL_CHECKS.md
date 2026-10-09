@@ -209,4 +209,5 @@ Use a transport, access or loyalty card you don't mind tapping. Nothing is writt
 | 4 | In FOCUS, tap a different card (e.g. a bank card). | Nothing happens: no toast, still FOCUS. No app chooser appears (if one does, note which app also claims cards). | |
 | 5 | Reboot, unlock, tap the card while in FOCUS. | FREE TIME (card scans stay on after a reboot). | |
 | 6 | In Setup, re-pair Tag B with an NTAG sticker. Then tap a bank card with the app closed. | Nothing opens: card scans are off again once no card is paired by ID. | |
+| 7 | (Optional) Try to pair a locked tag that opens a website when tapped. | Refused as locked; it isn't offered ID-only pairing. | |
 

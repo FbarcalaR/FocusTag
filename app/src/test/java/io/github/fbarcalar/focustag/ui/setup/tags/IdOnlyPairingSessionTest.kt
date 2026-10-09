@@ -2,6 +2,7 @@ package io.github.fbarcalar.focustag.ui.setup.tags
 
 import com.google.common.truth.Truth.assertThat
 import io.github.fbarcalar.focustag.focus.TagRole
+import io.github.fbarcalar.focustag.nfc.NfcAvailability
 import io.github.fbarcalar.focustag.nfc.PairingResult
 import io.github.fbarcalar.focustag.nfc.ScannedTag
 import io.github.fbarcalar.focustag.nfc.TagPairing
@@ -59,6 +60,47 @@ class IdOnlyPairingSessionTest : TagPairingFixture() {
         runCurrent()
 
         assertThat(viewModel.pairing).isEqualTo(PairingState.Failed(TagRole.DEACTIVATE, PairingError.TIMED_OUT))
+    }
+
+    @Test
+    fun `the second tap that completes setup routes on without a dialog`() = test { viewModel ->
+        repository.save(pairedA)
+        firstTap(viewModel)
+
+        present(viewModel, card)
+
+        assertThat(viewModel.pairing).isEqualTo(PairingState.Done(TagRole.DEACTIVATE, completesSetup = true))
+    }
+
+    @Test
+    fun `a second tap of a card already paired as the other tag is refused`() = test { viewModel ->
+        repository.save(TagPairing.idOnly(TagRole.ACTIVATE, card.scanned.uidHex))
+        firstTap(viewModel)
+
+        present(viewModel, card)
+
+        assertThat(viewModel.pairing).isEqualTo(PairingState.Failed(TagRole.DEACTIVATE, PairingError.UID_USED_BY_OTHER_ROLE))
+    }
+
+    @Test
+    fun `turning nfc off while waiting for the second tap ends the session`() = test { viewModel ->
+        firstTap(viewModel)
+
+        gateway.availability.value = NfcAvailability.DISABLED
+        runCurrent()
+
+        assertThat(viewModel.pairing).isEqualTo(PairingState.Idle)
+    }
+
+    @Test
+    fun `focus starting while re-pairing waits for the second tap ends the session`() = test { viewModel ->
+        repository.save(pairedB)
+        firstTap(viewModel)
+
+        enterFocus()
+        runCurrent()
+
+        assertThat(viewModel.pairing).isEqualTo(PairingState.Idle)
     }
 
     @Test
